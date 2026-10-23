@@ -12,6 +12,7 @@ async function readPrompt(page: Page): Promise<{ prompt: string | null; default_
 test("grammar prompt: prefilled default, save a custom version, check with it, restore the default", async ({ page, request }) => {
   await signIn(page, request);
   await page.getByTestId("nav-me").click();
+  await page.getByTestId("me-grammar").click();
   const initial = await readPrompt(page);
   expect(initial.prompt).toBeNull();
   expect(initial.max_length).toBe(2000);
@@ -35,6 +36,7 @@ test("grammar prompt: prefilled default, save a custom version, check with it, r
   await expect(page.getByTestId("badge-grammar")).toHaveAttribute("data-status", "done", { timeout: 60_000 });
 
   await page.getByTestId("nav-me").click();
+  await page.getByTestId("me-grammar").click();
   await page.getByTestId("grammar-prompt-reset").click();
   const del = page.waitForResponse((r) => r.url().endsWith("/api/me/grammar-prompt") && r.request().method() === "DELETE");
   await page.getByTestId("grammar-prompt-reset-confirm").click();

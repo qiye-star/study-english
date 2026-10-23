@@ -97,7 +97,8 @@
         "sender": {
           "kind": "ai",
           "id": null,
-          "name": null
+          "name": null,
+          "avatar_url": null
         },
         "text": "Sure, try: I never abandon a project halfway.",
         "assisted": false,
@@ -131,7 +132,8 @@
         "sender": {
           "kind": "ai",
           "id": null,
-          "name": null
+          "name": null,
+          "avatar_url": null
         },
         "text": "",
         "assisted": false,

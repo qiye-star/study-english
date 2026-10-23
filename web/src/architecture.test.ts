@@ -68,8 +68,9 @@ const CROSS_FEATURE_BASELINE = new Set([
   "chat->agents", "chat->grammar", "chat->lookup", "chat->practice", "chat->realtime", "library->practice", "lookup->practice",
   "practice->chat", "practice->rank", "practice->wordbook", "progress->practice",
   "rank->chat", "rank->practice", "realtime->chat", "rooms->agents", "rooms->chat",
-  "vocabulary->chat", "wordbook->chat", "wordbook->rank",
+  "vocabulary->chat", "wordbook->chat", "wordbook->rank", "dubbing->library", "dubbing->practice",
 ]); // L1 删去了五条 ->vocabulary / vocabulary->lookup 边(四处改用 <WordActions> 插槽);新增任何一条即失败
+// L5 W2(plan 2026-10-21-l5-dubbing R17):dubbing->library —— 配音只经 library 的懒加载工具包 loadDubbingKit() 与 DubbingKit 类型(只做再导出);library 不导入 dubbing。
 // A4(agents-web R-W4):chat->agents —— 对话页用 agents 的过程胶囊、角色切换与回合客户端(spec 2026-10-12-agents §3.4、§9.3);
 // agents 是产品本身(不受 LINKS_ENABLED 控制),不能挂在扩展点上;agents 不导入任何 feature,所以没有桶循环。
 // A5(agents-rooms W3,INDEX X13):rooms->agents —— 房间设置里的「智能体」区用 agents 的 PersonaPicker 选角色,消息列表用 ProcessCapsule 显示只给提问者的过程
@@ -197,7 +198,7 @@ describe("web architecture boundaries", () => {
       }
     }
     expect([...CROSS_FEATURE_BASELINE].filter((e) => !edges.has(e))).toEqual([]);
-    expect(CROSS_FEATURE_BASELINE.size).toBe(19);
+    expect(CROSS_FEATURE_BASELINE.size).toBe(21);
   });
 
   it("every extension point is rendered by product code and every contribution names a real point", () => {
@@ -251,5 +252,18 @@ describe("web architecture boundaries", () => {
     expect(tutor.length).toBeGreaterThan(5);
     expect(leaks).toEqual([]);
     for (const f of tutor) expect(sourceOf(f), f).not.toMatch(/features\/(wordbook|vocabulary)/);
+  });
+
+  it("the chat hub is the only place that knows both chat and rooms (plan L6 R1/R2)", () => {
+    expect(violationsOf("features/chat/x.tsx", 'import { useRoomsEnabled } from "~/features/rooms";')).toHaveLength(1);
+    expect(violationsOf("pages/chat-hub.tsx", 'import { useRoomsEnabled } from "~/features/rooms";')).toEqual([]);
+    expect(violationsOf("layout/x.tsx", 'import { ChatHubLayout } from "~/pages/chat-hub";')).toHaveLength(1);
+    expect(sourceOf("pages/chat-hub.tsx")).not.toContain("~/features/chat");
+    expect(CROSS_FEATURE_BASELINE.size).toBe(21);
+  });
+
+  it("the layout (bottom nav) no longer knows about rooms (plan L6 R8)", () => {
+    const offenders = files.filter((f) => f.startsWith("layout/") && !isTest(f) && sourceOf(f).includes("~/features/rooms"));
+    expect(offenders).toEqual([]);
   });
 });

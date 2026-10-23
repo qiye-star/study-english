@@ -10,6 +10,9 @@ frames; `welcome.protocol` tells the web which version the server speaks. v2.1 a
 
 Agents in rooms (plan 2026-10-12-agents-rooms R-RA9) only add: the private events `agent_step` / `agent_thought`
 (sent to the asker only), the public `agent_tutor`, the notice `agent_off` and MAX_AGENTS / TUTOR_TURN_SECONDS.
+
+Avatars (plan avatar S8, INDEX X29) only add `avatar_url` (nullable, a relative `/api/avatars/<id>`) to members,
+`sender` of member messages and join requests; AI and system senders always carry null. PROTOCOL_VERSION stays 2.
 No new client frames: tutor controls are HTTP, answers are ordinary `say`.
 
 Addressing (plan 2026-10-12-agents-addressing-server R1) only adds: the optional `say.to` (a persona id of this room's

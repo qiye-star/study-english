@@ -1,5 +1,5 @@
 { "web": { "rank": {
-  "title": "Rank", "disabled": "Rank is not enabled on this server.",
+  "mini": { "empty": "Finish one read-aloud to get ranked" }, "title": "Rank", "disabled": "Rank is not enabled on this server.",
   "tiers": { "bronze": "Bronze", "silver": "Silver", "gold": "Gold", "platinum": "Platinum", "diamond": "Diamond", "star": "Star", "master": "Master" },
   "cefr": "CEFR {{level}}",
   "card": { "progress": "{{rp}}/{{size}} RP", "toGate": "{{count}} RP to the promotion gate", "atGate": "At the promotion gate", "eligible": "Promotion match ready", "open": "View rank" },

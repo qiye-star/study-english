@@ -2,6 +2,9 @@
   "web": {
     "wordbook": {
       "title": "Word books",
+      "clip": {
+        "play": "Play the clip"
+      },
       "errors": {
         "disabled": "Word books are not enabled on this server.",
         "bookNotFound": "This word book does not exist or has been turned off.",
@@ -18,7 +21,7 @@
       },
       "card": {
         "title": "Wordbook",
-        "pitch": "Pick a book — {{n}} new words a day",
+        "mini": { "due": "due", "empty": "Pick a book to start" }, "pitch": "Pick a book — {{n}} new words a day",
         "pick": "Choose a book",
         "loadFailed": "Couldn't load today's plan.",
         "bookDisabled": "This book was turned off — pick another",

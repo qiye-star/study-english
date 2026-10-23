@@ -77,3 +77,20 @@ async def test_add_is_free_of_the_daily_import_counter_and_item_cap(app, client,
     for _ in range(2):
         cid = await make_catalog(app)
         assert (await client.post(f"/api/library/catalog/{cid}/add", headers=auth_headers)).status_code == 200
+
+
+async def test_adding_publishes_library_item_ready_only_when_the_copy_is_created(app, client, auth_headers):
+    from app.core.learning_events import LibraryItemReady
+
+    app.state.settings = app.state.settings.model_copy(update={"activation_enabled": True})
+    seen: list = []
+
+    async def handler(event):
+        seen.append(event)
+    app.state.learning_bus.subscribe(LibraryItemReady, "test.add", handler, flag="activation_enabled")
+    cid = await make_catalog(app)
+    first = (await client.post(f"/api/library/catalog/{cid}/add", headers=auth_headers)).json()
+    again = (await client.post(f"/api/library/catalog/{cid}/add", headers=auth_headers)).json()
+    assert (first["created"], again["created"]) == (True, False)
+    await app.state.learning_bus.drain()
+    assert [(e.item_id, e.catalog_id) for e in seen] == [(first["item"]["id"], None)]

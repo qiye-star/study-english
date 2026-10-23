@@ -15,7 +15,9 @@
       }
     },
     "grammarPrompt": {
-      "title": "Grammar check rules", "hint": "What the grammar checker looks for and how it explains. The answer format is fixed by the server.",
+      "title": "Grammar check rules", "pageTitle": "Grammar rules",
+      "intro": "These rules decide how the AI checks the English you write. You can use the app without changing them; the defaults are enough.",
+      "hint":"What the grammar checker looks for and how it explains. The answer format is fixed by the server.",
       "usingDefault": "Using the default rules", "custom": "Using your rules", "save": "Save", "saved": "Grammar rules updated.", "restored": "Default rules restored.",
       "reset": "Restore default", "resetConfirm": "Restore the default rules?", "resetDescription": "Your custom rules will be deleted on all your devices.",
       "errors": { "tooLong": "The rules are too long (2000 characters max)." }

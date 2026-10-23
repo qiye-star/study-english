@@ -132,7 +132,8 @@ async def test_seq_replay_filters_private_and_truncates(store):
     assert [m.seq for m, _ in rows] == [2, 3] and truncated
     assert (await store.find_client(room.id, A, "c1", NOW - timedelta(minutes=5))).seq == 2
     assert await store.get_assist(rows[0][0].id, A, room.id) is None
-    assert message_out(rows[0][0], "alice")["sender"] == {"kind": "user", "id": A, "name": "alice"}
+    assert message_out(rows[0][0], "alice")["sender"] == {"kind": "user", "id": A, "name": "alice",
+                                                                         "avatar_url": None}
     assert await store.recent_public(room.id, 2) == [("alice", "p1"), ("alice", "p2")]
 
 

@@ -216,6 +216,13 @@ async def test_safe_mode_saves_without_applying(app):
     ("admin_idle_minutes", 240, 5),
     ("admin_token_ttl_minutes", 1440, 10),
     ("admin_audit_retention_days", 30, 3650),
+    ("captcha_cost", 500, 5000),  # weaker than the default 1000 (the default was 5000 before 2026-10-20)
+    ("captcha_counter_max", 5000, 10000),
+    ("captcha_login_failures", 10, 5),
+    ("captcha_ttl_seconds", 1800, 60),
+    ("captcha_challenges_per_minute", 100, 5),
+    ("captcha_flagged_multiplier", 1, 5),
+    ("captcha_login_window_minutes", 5, 60),
 ])
 async def test_weakening_security_settings_needs_step_up_and_confirmation(app, key, weaker, stronger):
     """Review security m1: an idle superadmin session must not quietly remove brute-force or session protections."""
@@ -247,3 +254,64 @@ async def test_season_settings_are_locked_once_season_one_started(app):
     async with app.state.sessionmaker() as s:
         preview = await svc.import_preview(s, app, payload)
     assert preview["items"][0]["status"] == "read_only"
+
+
+# ---- captcha (plan A2; spec §9): direction rules and the env-only secret ----
+CAPTCHA_SECRET = "test-captcha-secret-" + "x" * 20
+
+
+@pytest.mark.parametrize("key, old, new, dangerous", [
+    ("captcha_mode", "off", "adaptive", True),
+    ("captcha_mode", "adaptive", "always", True),
+    ("captcha_mode", "adaptive", "off", True),
+    ("captcha_cost", 5000, 1000, True),
+    ("captcha_cost", 1000, 5000, False),
+    ("captcha_counter_max", 10000, 5000, True),
+    ("captcha_counter_max", 5000, 10000, False),
+    ("captcha_login_failures", 5, 10, True),
+    ("captcha_login_failures", 10, 5, False),
+    ("captcha_ttl_seconds", 300, 60, False),
+    ("captcha_ttl_seconds", 300, 1800, True),
+    ("captcha_challenges_per_minute", 20, 100, True),
+    ("captcha_challenges_per_minute", 20, 5, False),
+    ("captcha_flagged_multiplier", 2, 1, True),
+    ("captcha_flagged_multiplier", 2, 5, False),
+    ("captcha_login_window_minutes", 15, 5, True),
+    ("captcha_login_window_minutes", 15, 60, False),
+])
+def test_captcha_danger_direction(key, old, new, dangerous):
+    assert bool(svc.danger_reasons(key, old, new)) is dangerous
+
+
+@pytest.mark.parametrize("settings_overrides", [{"captcha_secret": CAPTCHA_SECRET, "captcha_mode": "adaptive"}],
+                         indirect=True)
+async def test_captcha_secret_is_env_only_and_never_listed_exported_or_audited(app):
+    with pytest.raises(svc.SettingsError) as exc:
+        await _save(app, {"captcha_secret": "z" * 40}, reason="rotate", stepped_up=True, confirm="CAPTCHA_SECRET")
+    assert exc.value.status == 400 and exc.value.error == "Setting is read-only"
+    with pytest.raises(svc.SettingsError) as exc:
+        await _save(app, {"captcha_secret": None}, reason="reset", stepped_up=True)
+    assert exc.value.status == 400 and exc.value.error == "Setting is read-only"
+    await _save(app, {"captcha_ttl_seconds": 120}, reason="captcha ttl")  # writes an audit row and a revision
+    async with app.state.sessionmaker() as s:
+        listing = await svc.list_settings(s, app)
+        export = await svc.export_overrides(s, app)
+        revisions = await svc.list_revisions(s)
+        audit_rows = (await s.scalars(select(AdminAudit))).all()
+        revision_rows = (await s.scalars(select(SettingRevision))).all()
+    item = next(i for i in listing["items"] if i["key"] == "captcha_secret")
+    assert item["env_only"] is True and item["secret"] is True
+    assert item["override_state"]["set"] is False and item["env_state"]["set"] is True
+    assert revision_rows and audit_rows
+    texts = {
+        "listing": json.dumps(listing, default=str),
+        "export": json.dumps(export, default=str),
+        "revisions": json.dumps(revisions, default=str),
+        "audit": json.dumps([{c.name: getattr(r, c.name) for c in AdminAudit.__table__.columns} for r in audit_rows],
+                            default=str),
+        "revision_rows": json.dumps([{c.name: getattr(r, c.name) for c in SettingRevision.__table__.columns}
+                                     for r in revision_rows], default=str),
+    }
+    for part, text in texts.items():
+        assert CAPTCHA_SECRET not in text, f"captcha secret leaked into {part}"
+    assert_no_secrets(listing, app.state.settings)

@@ -1,21 +1,24 @@
 import { expect, test } from "@playwright/test";
-import { INVITE_CODE, loginViaUi, newCredentials, registerViaApi } from "./support/auth";
+import { newAccount, registerInUi } from "./support/accounts";
+import { HOME_URL, loginViaUi, registerViaApi } from "./support/auth";
 
-test("register in the UI, log out and log back in", async ({ page }) => {
-  const { username, password } = newCredentials();
-  await page.goto("/login");
-  await page.getByTestId("login-mode-toggle").click();
-  await page.getByTestId("login-username").fill(username);
-  await page.getByTestId("login-password").fill(password);
-  await page.getByTestId("register-invite").fill(INVITE_CODE);
-  await page.getByTestId("login-submit").click();
-  await expect(page).toHaveURL(/\/practice$/);
+test("register in the UI (email code), log out and log back in by username or email", async ({ page }) => {
+  // 注册页是两步:邮箱发码 -> 验证码 + 用户名 + 昵称 + 密码 + 邀请码。登录页已没有「注册」切换。
+  const account = await registerInUi(page, newAccount());
   await page.getByTestId("nav-me").click();
-  await expect(page.getByTestId("me-username")).toHaveText(username);
-  await page.getByTestId("me-logout").click();
+  await expect(page.getByTestId("me-username")).toHaveText(account.username);
+  await page.getByTestId("me-profile").click();
+  await page.getByTestId("account-logout").click();
   await expect(page).toHaveURL(/\/login$/);
-  await loginViaUi(page, username, password);
-  await expect(page).toHaveURL(/\/practice$/);
+  await loginViaUi(page, account.username, account.password);
+  await expect(page).toHaveURL(HOME_URL);
+  await page.getByTestId("nav-me").click();
+  await page.getByTestId("me-profile").click();
+  await page.getByTestId("account-logout").click();
+  await expect(page).toHaveURL(/\/login$/);
+  // 登录框同时接受用户名与邮箱
+  await loginViaUi(page, account.email, account.password);
+  await expect(page).toHaveURL(HOME_URL);
 });
 
 test("wrong password shows an error", async ({ page, request }) => {

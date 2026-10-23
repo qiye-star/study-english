@@ -14,8 +14,13 @@ import { LQ_DANGER_TEXT, LQ_DIALOG, LQ_SECONDARY } from "~/components/liquid";
 import { bumpGrammarRev } from "./grammar-api";
 import { GRAMMAR_PROMPT_SERVER_ERRORS, getGrammarPrompt, resetGrammarPrompt, saveGrammarPrompt, type GrammarPromptState } from "./grammar-prompt-api";
 
-/** 设计文档 §2.4 用户层:预填当前生效的默认规则,可编辑保存,一键恢复默认(有确认)。R25。 */
-export function GrammarPromptEditor() {
+export type GrammarPromptEditorModel = ReturnType<typeof useGrammarPromptEditor>;
+
+/**
+ * 设计文档 §2.4 用户层:预填当前生效的默认规则,可编辑保存,一键恢复默认(有确认)。R25。
+ * 状态与请求都在这里;页面负责把「恢复默认」放进顶栏,并把同一个 model 交给 GrammarPromptEditor。
+ */
+export function useGrammarPromptEditor() {
   const { api } = useAuth();
   const { t } = useTranslation();
   const tRef = useRef(t);
@@ -68,20 +73,31 @@ export function GrammarPromptEditor() {
     else void run(() => saveGrammarPrompt(api, draft), "web.grammarPrompt.saved");
   };
 
+  const restore = (): void => { void run(() => resetGrammarPrompt(api), "web.grammarPrompt.restored"); };
+
   const custom = state?.prompt != null;
   const current = state ? state.prompt ?? state.defaultPrompt : "";
   const maxLength = state?.maxLength ?? 2000;
   const length = [...draft].length;
   const tooLong = length > maxLength;
 
+  return {
+    state, draft, setDraft, error, busy, confirming, setConfirming, attempt, retry: () => setAttempt((n) => n + 1),
+    save, restore, custom, current, maxLength, length, tooLong,
+  };
+}
+
+/** 编辑器主体(提示词框、计数、保存、恢复确认)。「恢复默认」按钮在页面顶栏,这里只保留确认框。 */
+export function GrammarPromptEditor({ editor }: { editor: GrammarPromptEditorModel }) {
+  const { t } = useTranslation();
+  const { state, draft, error, busy, confirming, custom, current, maxLength, length, tooLong } = editor;
+
   return (
     <section data-testid="grammar-prompt" className="space-y-2">
-      <h2 className="text-sm text-muted-foreground">{t("web.grammarPrompt.title")}</h2>
-      <p className="text-xs text-muted-foreground">{t("web.grammarPrompt.hint")}</p>
       {!state && error && (
         <div role="alert" data-testid="grammar-prompt-error" className="flex items-center gap-2 text-sm text-destructive">
           <span className="flex-1">{error}</span>
-          <Button variant="outline" data-testid="grammar-prompt-retry" className="h-11" onClick={() => setAttempt((n) => n + 1)}>{t("web.common.retry")}</Button>
+          <Button variant="outline" data-testid="grammar-prompt-retry" className="h-11" onClick={editor.retry}>{t("web.common.retry")}</Button>
         </div>
       )}
       {state && (
@@ -90,24 +106,18 @@ export function GrammarPromptEditor() {
             {t(custom ? "web.grammarPrompt.custom" : "web.grammarPrompt.usingDefault")}
           </p>
           <Textarea data-testid="grammar-prompt-input" rows={8} className="text-base" value={draft} disabled={busy}
-            aria-label={t("web.grammarPrompt.title")} onChange={(e) => setDraft([...e.target.value].slice(0, maxLength * 5).join(""))} />
+            aria-label={t("web.grammarPrompt.title")} onChange={(e) => editor.setDraft([...e.target.value].slice(0, maxLength * 5).join(""))} />
           <p data-testid="grammar-prompt-count" className={cn("text-right text-xs", tooLong ? "text-destructive" : "text-muted-foreground")}>
             {length} / {maxLength}
           </p>
           {tooLong && <p role="alert" className="text-xs text-destructive">{t("web.grammarPrompt.errors.tooLong")}</p>}
           {error && <p role="alert" data-testid="grammar-prompt-error" className="text-sm text-destructive">{error}</p>}
-          <div className="flex gap-2">
-            <Button data-testid="grammar-prompt-save" className="h-11 flex-1" disabled={busy || tooLong || draft.trim() === current.trim()} onClick={save}>
-              {t("web.grammarPrompt.save")}
-            </Button>
-            <Button variant="outline" data-testid="grammar-prompt-reset" className="h-11 flex-1" disabled={busy || !custom}
-              onClick={() => setConfirming(true)}>
-              {t("web.grammarPrompt.reset")}
-            </Button>
-          </div>
+          <Button data-testid="grammar-prompt-save" className="h-11 w-full" disabled={busy || tooLong || draft.trim() === current.trim()} onClick={editor.save}>
+            {t("web.grammarPrompt.save")}
+          </Button>
         </>
       )}
-      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+      <AlertDialog open={confirming} onOpenChange={editor.setConfirming}>
         <AlertDialogContent className={LQ_DIALOG}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("web.grammarPrompt.resetConfirm")}</AlertDialogTitle>
@@ -116,7 +126,7 @@ export function GrammarPromptEditor() {
           <AlertDialogFooter>
             <AlertDialogCancel className={`h-11 ${LQ_SECONDARY}`}>{t("web.common.cancel")}</AlertDialogCancel>
             <AlertDialogAction data-testid="grammar-prompt-reset-confirm" className={`h-11 ${LQ_DANGER_TEXT}`}
-              onClick={() => { setConfirming(false); void run(() => resetGrammarPrompt(api), "web.grammarPrompt.restored"); }}>
+              onClick={() => { editor.setConfirming(false); editor.restore(); }}>
               {t("web.grammarPrompt.reset")}
             </AlertDialogAction>
           </AlertDialogFooter>

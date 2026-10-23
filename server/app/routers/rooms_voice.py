@@ -15,7 +15,7 @@ from app.core.config import Settings
 from app.core.deps import current_user, limited_user
 from app.core.quotas import effective
 from app.core.ratelimit import RateLimiter
-from app.models import User, utcnow
+from app.models import User, display_of, utcnow
 from app.providers import llm
 from app.rooms import audio
 from app.rooms.protocol import MAX_ID, MAX_SEQ
@@ -87,14 +87,15 @@ def install(app, rt: RoomsRuntime) -> None:
     limits = rt.limits
     service = VoiceService(VoiceDeps(
         store=rt.store, voices=VoiceStore(sm), hub=rt.hub, limits=lambda: rt.limits,
-        data_dir=Path(settings0.resolved_data_dir), store_format=lambda: settings().rooms_voice_store_format,
+        storage=lambda: app.state.storage, store_format=lambda: settings().rooms_voice_store_format,
         available=lambda: settings().rooms_voice_available, llm_available=lambda: settings().rooms_ai_available,
         transcribe=transcribe, complete=complete, consume=consume, refund=refund, quota_mb_for=quota_mb_for,
         daily_for=daily_for, template=template, clock=utcnow,
         gate=asyncio.Semaphore(settings0.rooms_voice_concurrency),
         upload_limiter=RateLimiter(limits.voice_per_minute, 60),
         translate_limiter=RateLimiter(limits.translate_per_minute, 60),
-        retry_limiter=RateLimiter(limits.retry_per_minute, 60), agents=lambda: rt.agents))
+        retry_limiter=RateLimiter(limits.retry_per_minute, 60), agents=lambda: rt.agents,
+        publish=lambda event: app.state.learning_bus.publish(event)))  # plan L4 Task 17: the transcript count as active use
     rt.voice = service
 
     async def _voice_staging_sweep(rt_: RoomsRuntime, now) -> None:
@@ -157,7 +158,7 @@ async def upload_voice(room_id: str, request: Request, user: User = Depends(limi
             raise HTTPException(400, "Invalid to_agent")
     wav = await file.read()
     try:
-        message = await service.upload(room, user.id, user.username, wav, client_id, reply_to, to_agent)
+        message = await service.upload(room, user.id, display_of(user), wav, client_id, reply_to, to_agent)
     except VoiceError as e:
         status, text = VOICE_ERRORS.get(e.code, (400, "Invalid request"))
         raise HTTPException(status, text) from None
@@ -186,7 +187,7 @@ async def play_voice(room_id: str, message_id: str, request: Request, user: User
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
     try:
-        content = await asyncio.to_thread(audio.read_file, service.deps.data_dir, path)
+        content = await audio.read_file(service.deps.storage(), path)
     except FileNotFoundError:
         logger.warning("room voice file missing room=%s message=%s", room_id, message_id)
         raise HTTPException(410, "Audio removed") from None

@@ -6,12 +6,10 @@
       "label": "Announcements", "dismiss": "Dismiss announcement", "readOnly": "Maintenance: read-only for now",
       "maintenanceTitle": "Under maintenance", "maintenanceBody": "We are upgrading the service. Please come back shortly.", "checkAgain": "Check again"
     },
-    "nav": { "label": "Main", "practice": "Practice", "chat": "Chat", "rooms": "Rooms", "me": "Me" },
+    "nav": { "label": "Main", "practice": "Practice", "chat": "Chat", "me": "Me" },
     "languages": { "en": "English", "zh-CN": "简体中文", "es": "Español" },
     "login": {
-      "username": "Username", "password": "Password", "submit": "Log in", "registerSubmit": "Create account",
-      "switchToRegister": "No account? Register", "switchToLogin": "Have an account? Log in",
-      "inviteCode": "Invite code (if required)", "inviteHint": "Leave empty if the server allows open registration.",
+      "password": "Password", "submit": "Log in",
       "required": "Please enter username and password.",
       "usernameInvalid": "Username: 3–32 lowercase letters, digits or underscores.",
       "passwordLength": "Password must be 8–128 characters."
@@ -21,7 +19,10 @@
       "registrationClosed": "Registration is closed on this server.", "invalidInvite": "Invalid invite code.",
       "tooManyRequests": "Too many requests. Please try again later.", "network": "Network error. Check your connection.",
       "timeout": "The request timed out.", "aborted": "The request was cancelled.", "unknown": "Something went wrong.",
-      "maintenance": "The service is under maintenance. Please try again later."
+      "maintenance": "The service is under maintenance. Please try again later.",
+      "captchaRequired": "Please complete the verification first.",
+      "captchaInvalid": "Verification expired or failed. Please try again.",
+      "captchaNotConfigured": "Verification is not configured on this server."
     },
     "me": {
       "title": "Me", "username": "Account", "language": "Language",
@@ -29,6 +30,9 @@
       "services": "Server speech services", "stt": "Speech-to-text: server Whisper",
       "tts": "Text-to-speech models: {{models}}", "ttsDefault": "Default voice: {{voice}}",
       "playbackRate": "Read-aloud speed", "playbackRateHint": "Applies to read-aloud, auto-read, voice messages and the practice sample.",
+      "zhDefs": "Chinese definitions",
+      "zhDefsHint": "In new-word cards, reviews and lookups. \"Show on tap\" hides them until you tap. It applies only where Chinese is shown (Wordbook → definition display: both or Chinese only); with English only, use the 中 button on the card.",
+      "zhDefsOptions": { "auto": "Show automatically", "tap": "Show on tap" },
       "logout": "Log out", "install": "Add to Home Screen", "progress": "Learning progress", "vocabulary": "Vocabulary book"
     },
     "install": {

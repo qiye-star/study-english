@@ -9,6 +9,7 @@ import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import type { RecorderEnv } from "~/audio/recorder";
 import { useAuth } from "~/auth/auth-context";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
+import { resolveTtsVoice } from "~/settings/tts-voice-pref";
 import { cn } from "~/lib/cn";
 import { formatClock } from "~/lib/format-clock";
 import { savePracticeItem } from "../save-practice-item";
@@ -157,7 +158,8 @@ export function ShadowSheet({ request, onClose, recorderEnv }: ShadowSheetProps)
   const canListen = !!text && hasVoice && !busyNav;
   const listen = () => {
     if (!ai || !hasVoice) return;
-    void tts.play("reference", text, ai.defaultTts.model, ai.defaultTts.voice); // 同步段内 prime;不要在这之前 await
+    const voice = resolveTtsVoice("sentence", ai);
+    void tts.play("reference", text, voice.model, voice.voice); // 同步段内 prime;不要在这之前 await
   };
 
   const fav = async () => {

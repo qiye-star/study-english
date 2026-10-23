@@ -1,31 +1,31 @@
 import { CheckIcon } from "lucide-react";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SegmentedControl } from "~/components/segmented-control";
+import { useIsDark } from "~/layout/color-scheme";
 import { cn } from "~/lib/cn";
-import { SWATCHES, guardBackground, hslToRgb, type BgStyle, type ColorMode } from "~/lib/glass-theme";
+import { SWATCHES, guardBackground, hslToRgb, type BgStyle } from "~/lib/glass-theme";
 import { useGlassTheme } from "~/settings/glass-theme-store";
 import { GlassSlider } from "./glass-slider";
 
 const css = (h: number, s: number, l: number) => `rgb(${hslToRgb(h, s, l).join(", ")})`;
 
-/** 背景(设计稿 bgBlock):每种颜色模式一套 —— 8 个色板、自定义 HSL(饱和度 ≤ 30)、可选第二颜色、样式、可读性提示。 */
-export function BackgroundPicker({ initialMode }: { initialMode: ColorMode }) {
+/**
+ * 背景(设计稿 bgBlock)。只编辑当前生效的颜色模式(html.dark,即 useIsDark)那一套:浅色模式只有浅色色板,深色模式只有深色色板。
+ * 没有自己的浅色/深色切换;颜色模式由上方的「颜色模式」控件决定。另一模式的背景存在 theme.bg 里原样保留。
+ */
+export function BackgroundPicker() {
   const { t, i18n } = useTranslation();
   const { theme, updateBg, update } = useGlassTheme();
-  const [mode, setMode] = useState<ColorMode>(initialMode);
+  const mode = useIsDark() ? "dark" : "light";
   const pref = theme.bg[mode];
   const guard = guardBackground(pref, mode);
   const zh = i18n.language.startsWith("zh");
   const name = (i: number) => (zh ? SWATCHES[mode][i].zh : SWATCHES[mode][i].en);
   return (
     <div data-testid="appearance-background">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="text-sub font-semibold text-ink-2">{t("web.appearance.background")}</h2>
-        <SegmentedControl<ColorMode> label={t("web.appearance.editing")} value={mode} onChange={setMode}
-          options={(["light", "dark"] as const).map((m) => ({ value: m, label: t(`web.appearance.mode.${m}`) }))} />
-      </div>
-      <div className="grid grid-cols-4 gap-x-2 gap-y-2.5">
+      <h2 className="text-sub font-semibold text-ink-2">{t("web.appearance.background")}</h2>
+      <p data-testid="appearance-bg-hint" className="mb-3 mt-1 text-meta text-ink-2">{t(`web.appearance.bgHint.${mode}`)}</p>
+      <div data-testid="appearance-background-swatches" className="grid grid-cols-4 gap-x-2 gap-y-2.5">
         {SWATCHES[mode].map((s, i) => (
           <button key={s.zh} type="button" aria-pressed={pref.swatch === i} aria-label={name(i)} onClick={() => updateBg(mode, { swatch: i })}
             className={cn("flex min-h-tap flex-col items-center gap-1 text-meta", pref.swatch === i ? "font-semibold text-ink" : "text-ink-2")}>

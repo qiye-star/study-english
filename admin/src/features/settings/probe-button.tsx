@@ -16,6 +16,7 @@ export const PROBE_FOR: Record<string, string> = {
   asr_stream_url: "asr_stream",
   azure_speech_region: "azure",
   xfyun_ws_url: "xfyun",
+  smtp_host: "smtp",
 };
 
 const COSTLY = new Set(["llm", "grammar"]);

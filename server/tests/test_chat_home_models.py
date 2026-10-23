@@ -1,4 +1,4 @@
-"""Migration 0023 and the chat-home models (plan 2026-10-23-chat-home-daily-greeting §4, S1)."""
+"""Migration 0031 and the chat-home models (plan 2026-10-23-chat-home-daily-greeting §4, S1)."""
 import json
 import sqlite3
 
@@ -19,18 +19,18 @@ def settings_overrides(tmp_path):
     return {**ADMIN_ENABLED, "data_dir": str(tmp_path / "data")}
 
 
-def test_head_is_0023_and_follows_0022(tmp_path, monkeypatch):
+def test_head_is_0031_and_follows_0030(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0023"]
-    assert script.get_revision("0023").down_revision == "0022"
+    assert script.get_heads() == ["0031"]
+    assert script.get_revision("0031").down_revision == "0030"
 
 
-def test_0023_adds_daily_date_and_tables_and_round_trips(tmp_path, monkeypatch):
+def test_0031_adds_daily_date_and_tables_and_round_trips(tmp_path, monkeypatch):
     cfg, db = _config(tmp_path, monkeypatch)
-    command.upgrade(cfg, "0022")
+    command.upgrade(cfg, "0030")
     assert not {"chat_greetings", "chat_prefs"} & _tables(db)
-    command.upgrade(cfg, "0023")
+    command.upgrade(cfg, "0031")
     con = sqlite3.connect(db)
     try:
         assert {"chat_greetings", "chat_prefs"} <= _tables(db)
@@ -61,7 +61,7 @@ def test_0023_adds_daily_date_and_tables_and_round_trips(tmp_path, monkeypatch):
         con.commit()
     finally:
         con.close()
-    command.downgrade(cfg, "0022")
+    command.downgrade(cfg, "0030")
     con = sqlite3.connect(db)
     try:
         assert not {"chat_greetings", "chat_prefs"} & _tables(db)

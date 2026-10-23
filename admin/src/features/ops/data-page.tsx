@@ -30,6 +30,10 @@ function StorageCard() {
               <p className="num font-medium">{T.roomAudio(s.roomAudio.files, formatBytes(s.roomAudio.bytes))}</p>
               <p className="num text-fg-2">{T.staging(formatBytes(s.roomAudio.stagingBytes))}</p>
               <p className="num text-fg-2">{T.recordings(s.recordings.files, formatBytes(s.recordings.bytes))}</p>
+              <p className="num text-fg-2" data-testid="storage-backend">{T.backend(s.backend)}</p>
+              <p className={`num ${s.fallbackHits > 0 ? "font-medium text-warn" : "text-fg-2"}`} data-testid="storage-fallback">
+                {T.fallback(s.fallback, s.fallbackHits)}
+              </p>
               <p className="pt-1 text-xs text-muted">{T.keepNote}</p>
             </div>
             <div>

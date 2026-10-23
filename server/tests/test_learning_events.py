@@ -284,3 +284,80 @@ async def test_a_hanging_gate_times_out_instead_of_blocking_the_consumer():
     bus.publish(answered())
     await asyncio.wait_for(bus.drain(), 2)
     assert seen == [1] and bus.stats()["slow"]["timeouts"] == 1 and bus.stats()["fast"]["handled"] == 1
+
+
+# ---- L4 Task 1: per-subscription master flags and the two new events ----
+
+async def test_activation_subscription_runs_with_links_off_and_flag_on():
+    bus, _, _ = make_bus(links_enabled=False, activation_enabled=True)
+    seen = []
+
+    async def handler(e):
+        seen.append(e)
+    bus.subscribe(MessageSent, "activation.chat", handler, flag="activation_enabled")
+    assert bus.publish(MessageSent(user_id=1, conversation_id="c", message_id="m", text="hi", at=AT)) is True
+    assert bus.queue()["size"] == 1
+    assert await bus.drain() == 1 and len(seen) == 1
+    assert bus.stats()["activation.chat"]["handled"] == 1
+
+
+async def test_both_flags_off_costs_nothing_on_the_queue():
+    bus, _, _ = make_bus(links_enabled=False, activation_enabled=False)
+
+    async def handler(e):
+        raise AssertionError("must not run")
+    bus.subscribe(MessageSent, "activation.chat", handler, flag="activation_enabled")
+    bus.subscribe(MessageSent, "chat_words", handler)
+    assert bus.publish(MessageSent(user_id=1, conversation_id="c", message_id="m", text="hi", at=AT)) is False
+    assert bus.queue()["size"] == 0
+    assert bus.stats()["activation.chat"]["published"] == 0
+
+
+async def test_a_subscription_whose_flag_is_off_is_skipped_per_link():
+    bus, _, _ = make_bus(links_enabled=True, activation_enabled=False)
+    seen = []
+
+    async def links_handler(e):
+        seen.append("links")
+
+    async def activation_handler(e):
+        seen.append("activation")
+    bus.subscribe(MessageSent, "chat_words", links_handler)
+    bus.subscribe(MessageSent, "activation.chat", activation_handler, flag="activation_enabled")
+    assert bus.publish(MessageSent(user_id=1, conversation_id="c", message_id="m", text="hi", at=AT)) is True
+    assert await bus.drain() == 1
+    assert seen == ["links"]
+    st = bus.stats()
+    assert st["chat_words"]["handled"] == 1
+    assert st["activation.chat"]["skipped"] == 1 and st["activation.chat"]["handled"] == 0
+
+
+def test_realtime_turn_finished_truncates_and_hides_text():
+    from app.core.learning_events import RealtimeTurnFinished
+
+    ev = RealtimeTurnFinished(user_id=1, conversation_id="c", message_id="m", text="y" * 5000, at=AT)
+    assert len(ev.text) == 4000 and "yyyy" not in repr(ev)
+    assert len(ev.event_id) == 32
+
+
+def test_library_item_ready_carries_no_text_and_accepts_catalog_rows():
+    from app.core.learning_events import LibraryItemReady
+
+    user_ev = LibraryItemReady(user_id=3, item_id="item-1", at=AT)
+    cat_ev = LibraryItemReady(user_id=None, catalog_id="cat-1", at=AT)
+    assert (user_ev.user_id, user_ev.item_id, user_ev.catalog_id) == (3, "item-1", None)
+    assert (cat_ev.user_id, cat_ev.item_id, cat_ev.catalog_id) == (None, None, "cat-1")
+    assert len(cat_ev.event_id) == 32
+
+
+async def test_library_item_ready_publishes_under_an_activation_flag():
+    from app.core.learning_events import LibraryItemReady
+
+    bus, _, _ = make_bus(links_enabled=False, activation_enabled=True)
+    seen = []
+
+    async def handler(e):
+        seen.append(e)
+    bus.subscribe(LibraryItemReady, "activation.index", handler, flag="activation_enabled")
+    assert bus.publish(LibraryItemReady(user_id=None, catalog_id="cat-1", at=AT)) is True
+    assert await bus.drain() == 1 and seen[0].catalog_id == "cat-1"

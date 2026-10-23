@@ -195,7 +195,7 @@ async def test_admin_playback_uses_sv_audio_files_and_stays_under_room_audio(app
     data = app.state.settings.resolved_data_dir
     m = await _voice(app, room["id"], alice, audio_path=None)
     rel = audio.audio_relpath(room["id"], m.id, "mp3")
-    audio.write_file(data, rel, b"\xff\xf3clip")
+    await audio.write_file(app.state.storage, rel, b"\xff\xf3clip")
     (data / "recordings").mkdir(parents=True)
     (data / "recordings" / "a.wav").write_bytes(b"RIFF-not-room-audio")
     outside = [await _voice(app, room["id"], alice, audio_path=p)
@@ -219,7 +219,7 @@ async def test_admin_playback_uses_sv_audio_files_and_stays_under_room_audio(app
         (await s.get(Room, room["id"])).status = "closed"
         (await s.get(Room, room["id"])).closed_at = NOW - timedelta(days=400)
         await s.commit()
-    settings = app.state.settings
+    settings = app.state.storage
     async with app.state.sessionmaker() as s:
         scan = await housekeeping.scan_room_audio(s, settings, 365, NOW, grace=0)
         assert rel in scan.samples

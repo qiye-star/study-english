@@ -34,6 +34,20 @@ export const S = {
     replacing: (p: string) => `上传中 ${p}`,
     replaceFailed: (why: string) => `上次替换媒体失败:${why}`,
     text: "原文", zh: "译文", startMs: "开始(毫秒)", endMs: "结束(毫秒)", close: "关闭",
+    exportBundle: "导出 bundle", bundleExported: (n: number) => `bundle 已导出到存储,共 ${n} 句`,
+  },
+  bundle: {
+    title: "从 bundle 导入", import: "导入", none: "没有可导入的 bundle(本库已有的条目不再列出)。",
+    pick: "选择 bundle", reason: "理由(必填,写入审计)",
+  },
+  roles: {
+    title: "角色标注", loading: "正在加载角色…", hint:"给句子标上说话人(A–F),配音时每个角色只录自己的句子。角色名只给学习者看。",
+    none: "无角色", readonly: "只读:需要运营权限才能修改角色。", lines: (n: number) => `${n} 句`,
+    name: "角色名", namePlaceholder: "例如:主持人", save: "保存角色", saving: "保存中…",
+    saved: (copies: number) => copies > 0 ? `已保存,并同步到 ${copies} 个学习者副本` : "已保存",
+    suggest: "智能建议", suggesting: "正在请求建议…", adopt: "采用建议", discard: "放弃建议",
+    draft: (n: number) => `草稿:${n} 句待采用(尚未保存)`, nothingChanged: "没有改动",
+    locked: "已发布的条目也可以修改角色,学习者的副本会一起更新。",
   },
   confirm: {
     deleteTitle: "删除精选条目",
@@ -43,6 +57,9 @@ export const S = {
     purgeBody: (refs: number) => `会同时删除这 ${refs} 个学习者的副本(学习记录中的评测保留)。需要超级管理员与二次验证。`,
   },
   errors: {
+    "Unsupported bundle version": "bundle 版本过新,请先升级服务器", "Item exists": "本库已有这个条目",
+    "Bundle media is missing": "bundle 的媒体文件在存储里缺失", "Bundle is invalid": "bundle 内容无效或被改动",
+    "Bundle not found": "找不到这个 bundle", "Item is not ready to export": "只有已就绪、未退役的条目能导出",
     "Invalid link": "链接无效", "Link import is unavailable": "链接导入不可用(服务器没有 yt-dlp)",
     "Media tools are not installed": "服务器缺少 ffmpeg", "Unsupported file type": "不支持的文件类型",
     "File is too large": "文件太大", "Item is not ready": "条目还没处理完", "Item is published": "已发布的条目不能这样修改",
@@ -50,6 +67,8 @@ export const S = {
     "Item has not failed": "条目没有失败", "AI is unavailable": "译文服务不可用", "Invalid sentence times": "句子时间不合法",
     "Invalid sentence text": "句子文字不合法", "Invalid level": "级别不合法", "Invalid tags": "标签不合法(最多 5 个,每个 ≤ 16 字,不能含逗号)",
     "Invalid license_note": "许可说明太长", "Unsupported language": "不支持的译文语言", "Catalog item not found": "条目不存在",
+    "Invalid roles": "角色标注不合法", "Invalid clip": "这一段句子不合法(范围或长度超出限制)",
+    "Too many sentences": "一次最多建议 40 句", "AI is busy today": "今日智能建议次数已用完,明天再试",
     // 以下是服务端实际会返回、计划未列出的(裁定 R-AU7)
     "Sentence not found": "句子不存在", "No changes": "没有改动", "Confirmation required": "需要输入确认短语",
     "Upload is not in progress": "上传已结束或被取消", "Upload expired": "上传已过期,请重新上传",

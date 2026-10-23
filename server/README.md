@@ -8,6 +8,7 @@
 Electron 客户端 ──(apiUrl)──▶ server (FastAPI, uv)
                                 ├ /up                           健康检查
                                 ├ /api/sessions, /api/users, /api/me   认证
+                                ├ /api/email/code, /api/password/reset, /api/me/email*   邮箱验证码、找回密码、绑定 / 换绑(默认关,见「账号与邮箱」)
                                 ├ /api/config/{key}             配置快照
                                 ├ /api/ai/chat/completions      ──▶ 上游 LLM(OpenAI 兼容,SSE 透传)
                                 ├ /api/ai/grammar               语法检查(登录 + 用户限流;请求 {text, context?};提示词与模型由服务端决定)
@@ -72,7 +73,7 @@ curl localhost:8000/up     # {"status":"ok"}
 - **管理员与会话**:库内管理员账号(超级管理员 / 运营 / 只读三种角色)、我的会话、撤销会话、TOTP(含恢复码)与修改密码;每个角色都能管理自己的会话、TOTP 和密码,只有超级管理员能管理其他账号。绑定 TOTP 需要先二次验证;已绑定时要先解绑才能换绑。登录的验证码步骤每个待验证会话最多错 5 次,并按用户名(不分 IP)锁定。
 - **审计日志**:每个写操作同事务写审计(哈希链,多进程并发也保持线性;页面可校验「哈希链完整」,清理后从清理锚点开始校验);被拒绝的越权/未二次验证请求记为 `auth.denied`;不记录密码、token、TOTP、密钥、用户文本和提示词正文。
 - **段位**:段位规则版本化(草稿 → 校验 → 影响预演 → 发布,进行中的比赛钉住开始时的版本;发布绑定到超级管理员审阅的那份草稿,期间被改过则提示刷新);**发布后 6 个 `RANK_*` 设置(每日段位点上限、每日晋级赛次数、冷却、单场时限、赛季起点与周数)在设置页变为只读**,改动只能在「段位规则」页做。单人操作(调段、清冷却、补次数、作废比赛、成就)与全体重置(可撤销)。
-- **用户与内容**:停用/启用、撤销登录、重置密码、删除用户;按用户配额覆盖(存储、条数上限、AI 限流、每日晋级赛次数、房间助手次数、拥有房间数,可设过期);邀请码(多次码,限次数/过期/撤销,只存哈希)。**删除用户永不删除房间与房间消息**:他创建、有其他成员的房间转给最早加入的成员;没人加入过的房间关闭并只读保留,房主显示「已删除用户」;他在别的房间发的消息保留(不再显示名字)。
+- **用户与内容**:停用/启用、撤销登录、重置密码、删除用户;按用户配额覆盖(存储、条数上限、AI 限流、每日晋级赛次数、房间助手次数、拥有房间数,可设过期);邀请码(管理员码:多次码与批量码,限次数/过期/撤销;用户码:每人一个永久码,可按人调上限或收回,见「注册保护」)。**删除用户永不删除房间与房间消息**:他创建、有其他成员的房间转给最早加入的成员;没人加入过的房间关闭并只读保留,房主显示「已删除用户」;他在别的房间发的消息保留(不再显示名字)。
 - **房间**:列表、详情(时间线,查看私聊会写审计)、关闭、移出成员、关闭房间 AI、隐藏消息(只隐藏不删除)、举报处理。
 - **用量与费用**:按功能/用户/上游的调用量、错误分布、上游健康(超级管理员可在每行直接「测试连接」),费用为**估算**(见下文单价表)。
 - **提示词**:语法检查规则、房间助手组句、`@ai` 回答、对话情景模板可版本化发布(发布立即生效,无需重启)。房间两个模板里单独一行 `[[user]]` 之后的部分作为用户消息发送;学习者文本总在边界标签内并转义。
@@ -119,6 +120,8 @@ docker compose exec server python -m app.admin.recover rotate-key               
 
 **备份与清理**(「数据与备份」页,超级管理员):SQLite 用 `VACUUM INTO` 生成一致性快照到 `BACKUP_DIR`(默认 `DATA_DIR/backups`),保留最近 `BACKUP_KEEP` 份;`BACKUP_HOUR_UTC`(0–23)每天自动备份一次,`-1` = 关。下载链接一次性、60 秒有效并绑定当前会话。录音目录与 `SETTINGS_ENCRYPTION_KEY` 不在快照里,需另外备份;Postgres 请用 `pg_dump`。清理工具:孤立录音文件(先扫描再删除)、早于保留期的审计日志(`ADMIN_AUDIT_RETENTION_DAYS`,清理后哈希链从保留的第一条起校验)。
 
+**头像**(`AVATAR_UPLOAD_ENABLED`,默认 `true`,热改):用户上传 JPEG / PNG / WebP(≤ 2 MiB),服务端用 Pillow 重新编码为 256×256 WebP 并去掉 EXIF / ICC / XMP 等元数据,文件存 `DATA_DIR/avatars/<32 位随机十六进制 id>.webp`。开关关闭 = 不能上传(403)、头像读取返回 404;已有头像与载荷里的 `avatar_url` 保留(网页回落为首字),删除自己的头像仍允许,重新打开即恢复。**`DATA_DIR/avatars/` 不在应用内备份里**:「数据与备份」只复制数据库,必须像录音目录一样单独备份该目录,并与数据库快照成对还原;只还原数据库时,头像显示为首字。头像读取带一年 `public, immutable` 缓存,被移除的头像可能在浏览器或代理缓存中残留,直到用户的头像 id 变化。Pillow 是运行依赖(`pyproject.toml`);它的安装只在本地 `uv sync` 验证过,镜像构建尚未验证。
+
 **系统状态与日志**:系统页显示版本(`BUILD_SHA`)、运行时间、数据库与迁移版本、后台任务、待重启项与诊断;日志页是进程内的脱敏日志环形缓冲(票据、Bearer、密钥值、Cookie 等一律替换),查看会写审计。
 
 **部署注意**:单 worker(审计哈希链的锁、限流、配额缓存、备份下载令牌、房间运行时都在进程内;设置与提示词的跨进程同步只靠 5 秒一次的修订号轮询);反向代理需转发 `/admin` 与 `/api/admin/*`,Cookie 路径为 `/`。**未在真实 HTTPS 反向代理后验证**(见 `docs/superpowers/plans/e2e-results.md`「2026-10-09 管理后台 v2」)。
@@ -156,10 +159,206 @@ cd server && TEST_DATABASE_URL=postgresql+asyncpg://enjoy:change-me@localhost:54
 `REGISTRATION_MODE`:
 
 - `open`:任何人可注册(默认)
-- `invite`:注册时必须提供邀请码:`.env` 的 `INVITE_CODE`(单码,不限次数;可留空)或管理后台「邀请码」页发的多次码(限次数、可过期、可撤销,库里只存哈希)。两者都没有时没人能注册,配置诊断提示 `invite_without_codes`
+- `invite`:注册时必须提供邀请码,有两种:**管理员码**(运营及以上在后台「邀请码」页创建,可单个或批量;限次数、可过期、可撤销;批量码只在创建时显示一次)和**用户码**(每个符合条件的用户自己生成的一个永久随机码,见下文)。库里只存哈希。两者都没有时没人能注册,配置诊断提示 `invite_without_codes`。`.env` 的 `INVITE_CODE` 是不限次数的旧式单码:无归属、不能单独撤销,**不推荐**(配置诊断提示 `legacy_invite_code`)。
 - `closed`:关闭注册
 
 注册与登录接口按 IP 限流,上限由 `RATE_LIMIT_PER_MINUTE` 控制(每分钟次数)。
+
+邮箱注册开启时(`EMAIL_REGISTRATION_REQUIRED`,默认 true),`REGISTRATION_MODE` 仍然决定是否需要邀请码:`invite` 模式下邮箱注册也要邀请码。
+
+### 邀请码 v2:用户码、上限与收回
+
+- **用户码**:每人至多一个未撤销的随机码(10 位,显示为 `XXXXX-XXXXX`)。库里保存哈希,并另存一份用 `SETTINGS_ENCRYPTION_KEY` 加密的副本,好让本人再次看到它。**没有 `SETTINGS_ENCRYPTION_KEY` 时用户码功能关闭**(接口返回 503「Invites are not configured」)。
+- **生成条件**:注册满 `INVITES_USER_MIN_ACCOUNT_DAYS` 天(默认 7)、邮箱已验证、账号未停用,且累计上限不为 0。
+- **累计上限**:`INVITES_USER_CODE_MAX_USES`(默认 10)是**每人**的累计兑换次数,换码不清零。后台「用户 → 配额」可按人覆盖 `invites_user_code_max_uses`:0 = 收回该用户的邀请权(码立即不能再用);超过全站值 10 倍的覆盖需要超级管理员与二次验证。
+- **更换**:本人或运营都可以更换码。旧码立即失效,新码继承已用次数,所以更换不会多给次数。本人生成与更换共享每天 5 次的额度(进程内计数)。
+- **接口**:本人 `GET /api/me/invite`、`POST /api/me/invite`(生成;已有则返回现有码)、`POST /api/me/invite/rotate`(请求体 `{"confirm": true}`);运营 `GET /api/admin/users/{id}/invite`、`POST …/invite/revoke`、`POST …/invite/rotate`(均需理由与二次验证;运营看不到新码)。管理员码:`/api/admin/invites`(单个与批量,运营及以上)。
+- **被邀请者列表**:只显示显示名(有昵称用昵称,否则登录名)与加入时间,最多 50 条,最新在前。
+- **注册**:`POST /api/users` 带 `invite_code`(`invite` 模式下校验并扣一次;邮箱注册与旧注册方式相同),成功时在同一事务里写一条兑换记录,即谁邀请了谁。`open` 模式下忽略邀请码。
+- **错误邀请码**:同一 IP 每小时的错误次数达到 `INVITE_FAILURES_PER_IP_HOURLY`(默认 5)后,该 IP 带邀请码的注册请求一律返回 429,真码与假码的响应相同。
+- **删除用户**:其用户码先被撤销并清除副本,代码行保留但不再关联该用户;用他的码注册的人的兑换记录保留(邀请人一栏为空)。
+
+**上线顺序**(见 `docs/superpowers/plans/2026-10-14-accounts-INDEX.md` §10):先只用管理员批量码,确认注册无误后再开放「我的邀请码」;若要延后,把 `INVITES_USER_CODE_MAX_USES` 临时设为 0,所有人会看到「暂不可生成」。
+
+**已知限制**:
+
+- 永久多次码贴到公开渠道,在用完上限前等同于开放注册。缓解办法:上限、按人覆盖(调为 0 收回)、更换或撤销、按 IP 限流。
+- 被邀请者列表显示的是显示名(没有昵称时为登录名)。
+- 累计上限的实时读取有 30 秒缓存:多进程下各进程的生效时间可能相差最多 30 秒。
+- 按 IP 的错误计数与每人每天的操作额度都是进程内的;多进程部署时,实际限额会随进程数增加。
+- 换码继承已用次数,不会多给次数。
+- 以上限制都不适用于 `open` 模式(那时邀请码被忽略)。
+
+## 人机验证(ALTCHA)
+
+人机验证是一道**工作量证明**挑战:浏览器要先算出一个答案才能提交注册、发邮箱验证码、找回密码或登录。挑战由本服务自己签发和校验(官方 Python 库 `altcha==2.3.0` 加上我们自己的严格检查),不连任何第三方主机,不设 Cookie,挑战也不进 URL。设计依据:`docs/superpowers/specs/2026-10-20-captcha-altcha-design.md`;计划与实测:`docs/superpowers/plans/2026-10-20-captcha-altcha.md`(「执行结果」)。
+
+**它不是什么:** 它不能防通用爬虫、慢速扫描或 DoS(那要靠反向代理限流或 WAF);它只提高廉价脚本的计算成本。
+
+### 保护哪些接口
+
+| 接口 | 说明 |
+|---|---|
+| `POST /api/users` | 注册 |
+| `POST /api/email/code` | 注册与找回密码时发邮箱验证码 |
+| `POST /api/me/email/code` | 已登录用户绑定 / 换绑邮箱时发验证码 |
+| `POST /api/password/reset` | 找回密码(提交新密码) |
+| `POST /api/sessions` | 登录;`adaptive` 下只在被标记时要求(见下) |
+
+`GET /api/captcha/challenge`(取挑战)按 IP 每分钟限流;`GET /api/captcha/config`(取模式)不计算、不限流。
+
+**有意不受保护:**
+
+- `POST /api/me/password`(改密):已登录且要求当前密码,已有 `auth_rate_limit` 限流。
+- `POST /api/me/email`(绑定 / 换绑):已登录且要求邮件里收到的验证码,验证码本身一次性。
+- 邀请码管理(`/api/me/invite*`、`/api/admin/invites*`)、头像上传(`POST /api/me/avatar`)、头像举报(`POST /api/avatar-reports`)、登出以及其他需要登录的业务接口:设计决定不对已登录的业务接口加人机验证。
+
+### 三种模式
+
+- **`off`(默认):** 不验证任何请求;挑战接口返回 404。升级后的默认值,桌面端与老用户不受影响。
+- **`adaptive`(推荐):** 注册、发邮箱验证码、找回密码总是要求验证。登录只在同一 IP 或同一登录名在 15 分钟内输错 5 次之后才要求(阈值可调)。
+- **`always`(应急):** 登录也每次都要求。桌面端没有验证组件,**无法登录**(配置诊断会警告)。只在遭到攻击时临时使用,之后切回 `adaptive`。
+
+### 开启步骤
+
+1. 生成并设置签名密钥 `CAPTCHA_SECRET`(只从环境变量读取,不进管理后台;至少 32 个字符;不进仓库、不进日志):
+
+   ```
+   python -c "import secrets; print(secrets.token_urlsafe(48))"
+   ```
+
+   把输出写进 `server/.env`:`CAPTCHA_SECRET=<生成的值>`。像 `IDENTITY_PEPPER` 一样另存一份备份。丢失或更换它的后果只是未用完的挑战失效(最多 `CAPTCHA_TTL_SECONDS` 秒),不会丢数据。
+2. 重启服务(例如 `docker compose restart server`,服务名以你的 `docker-compose.yml` 为准)。
+3. 打开管理后台「设置」页的配置诊断,确认没有 `captcha_secret_missing`(错误)。
+4. 在管理后台「设置」里把 `captcha_mode` 改为 `adaptive`。这是危险设置:需要重新输入管理员密码(step-up)、填写理由并输入确认词 `CAPTCHA_MODE`;热改,立即生效。
+5. 用浏览器通过 HTTPS 打开注册页与找回密码页,确认出现「人机验证」复选框,勾选并等它通过后再提交。在测试账号上走一遍完整流程。
+6. 看日志:每次通过的受保护请求写一行 `timing event=captcha_verify scope=<register|email_code|reset|login> solve_ms=<毫秒>`(logger `app.timing`)。管理后台的日志查看器可搜索 `captcha_verify`。这一行只含作用域与解题毫秒数,没有载荷、签名或 IP。
+
+### 紧急关闭
+
+- 管理后台把 `captcha_mode` 改回 `off`(同样需要 step-up、理由与确认词 `CAPTCHA_MODE`);热改,立即生效。
+- 或在 `server/.env` 写 `CAPTCHA_MODE=off` 后重启。
+- `CAPTCHA_SECRET` 只能改环境变量,管理后台改不了。
+
+### 可调参数与哪个方向削弱防护
+
+管理后台的危险设置会要求确认(下表「削弱防护」列即管理后台的危险方向)。除 `captcha_secret` 外全部热改。
+
+| 设置 | 默认 | 范围 | 削弱防护的方向 |
+|---|---|---|---|
+| `captcha_mode` | `off` | `off` / `adaptive` / `always` | 任何改动都要确认;改成 `off` 即去掉验证 |
+| `captcha_secret` | 空 | 空或至少 32 字符 | 只读环境变量;更换只让未用完的挑战失效 |
+| `captcha_ttl_seconds` | 300 | 60–1800 | 调长(已解出的挑战可以囤积更久) |
+| `captcha_cost` | 1000 | 1–100000 | 调低(脚本的计算量降低) |
+| `captcha_counter_max` | 10000 | 10–1000000 | 调低(服务端选的答案序号上限降低) |
+| `captcha_flagged_multiplier` | 2 | 1–10 | 调低(被标记的 IP 的计算量倍数降低) |
+| `captcha_login_failures` | 5 | 1–100 | 调高(更多次失败才要求验证) |
+| `captcha_login_window_minutes` | 15 | 1–1440 | 调短(失败更快被忘记)。注:设计文档 §9 曾写作无确认,代码与帮助文字以调短为危险方向,本文以代码为准 |
+| `captcha_challenges_per_minute` | 20 | 1–1000 | 调高(同一 IP 更快取到挑战) |
+
+**默认值是桌面实测的结论,不是手机上的结论。** 默认 `captcha_cost=1000`、`captcha_counter_max=10000` 时,桌面浏览器实测中位数约 2.5 秒(Intel i5-14400,Chromium);手机未实测,请在自己的手机上试,再决定是否调整(计划「执行结果」Z1)。真机(iPhone、安卓)**未验证**,上线前请按上面的第 5–6 步在你自己的手机上测。
+
+### 反向代理
+
+- 经反向代理部署时必须设置 `TRUST_PROXY_HEADERS=true`,并且代理要**覆盖** `X-Forwarded-For`(见上文「必须使用 HTTPS」)。否则所有用户共用代理的 IP,一个人输错 5 次就会让所有人的登录都要验证;配置诊断会给出 `captcha_without_proxy_headers` 警告。同一出口 IP 的用户(公司、学校、移动网络 NAT)也会共用计数。
+- 人机验证**不能**替代反向代理层的限流。下面的 Nginx / OpenResty 示例**只是示例,数字需按自己的流量调整,未在真实 1Panel 上验证**,改完先 `nginx -t`:
+
+```nginx
+# http 块(1Panel:「网站 → 设置 → OpenResty 配置」或 conf.d 下的全局片段;limit_*_zone 只能放在 http 块)
+limit_req_zone  $binary_remote_addr zone=enjoy_auth:10m rate=10r/m;
+limit_req_zone  $binary_remote_addr zone=enjoy_api:10m  rate=20r/s;
+limit_conn_zone $binary_remote_addr zone=enjoy_conn:10m;
+
+# server 块(站点配置)
+limit_conn enjoy_conn 30;            # 每个 IP 的并发连接(含 WebSocket)
+limit_req_status 429;
+limit_conn_status 429;
+
+location ~ ^/api/(sessions|users|email/code|me/email/code|password/reset|captcha/challenge)$ {
+    limit_req zone=enjoy_auth burst=10 nodelay;
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;   # 覆盖,而不是追加(见「必须使用 HTTPS」一节)
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /api/ {
+    limit_req zone=enjoy_api burst=40 nodelay;
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+# /api/realtime、/api/rooms/ws 的 WebSocket location 保持原样(Upgrade 头、读超时 ≥ 660s),它们同样受 limit_conn 约束
+```
+
+注意:正则 `location` 优先于前缀 `location /api/`;`^/api/sessions$` 不匹配 `DELETE /api/sessions/current`;注册流程一次大约 5 个请求落在 `enjoy_auth` 区(配置不算:config、challenge、email/code、challenge、users),`rate=10r/m burst=10` 留有余量。
+
+### 已知限制
+
+- **登录名可被用来触发验证。** 攻击者故意用某人的登录名连续输错 5 次,该登录名在 15 分钟内对任何 IP 都要求验证。受害者可以在网页上先通过验证再登录;**桌面端无法解验证,所以这 15 分钟内桌面端登不上**。
+- **失败计数在进程内。** 多个 worker 时阈值会相应放大(每个进程各计一份);重启清零;IPv6 用户可以轮换 /64 地址绕过按 IP 的计数。防重放表在数据库里,多进程下的防重放本身应当准确(**未验证**)。
+- **挑战接口每次请求做一次 PBKDF2 计算,** 在默认线程池(`asyncio.to_thread`)里执行。它按 IP 限流,但这只是缓解,不能代替反向代理限流。
+- **工作量证明只抬高廉价脚本的成本。** 有真实算力、原生实现、GPU 或打码平台的攻击者仍能通过。
+- **必须 HTTPS。** 组件依赖 WebCrypto,只在安全上下文可用;`http://localhost` 与 `*.localhost` 可以用,但用局域网 IP 的 `http://` 访问时不会出现组件,注册会得到 428 提示(需要 HTTPS 才能完成人机验证)。
+- **隐藏输入框的残留。** 组件把载荷放在一个隐藏的 `<input type="hidden">` 里(`name` 为空,不属于任何表单),所以载荷在提交前的页面 DOM 里可以被页面脚本或开发者工具读到。已用过的载荷不能再用,但未提交前被读到的载荷可以被抢先使用(设计文档 §7)。
+- **不防通用爬虫与 DoS。** 那要靠反向代理限流 / WAF。
+- **未验证:** 真机解题耗时(iOS Safari、安卓 Chrome、低端机);Postgres 与多 worker 下的行为;组件的无障碍声明;组件在运行时不向第三方主机发请求(只在桌面浏览器窗格抓过);桌面端 `enjoy/` 收到 `captcha_required` 时的实际显示(未运行);真实 1Panel / OpenResty 上的 nginx 示例。
+
+## 账号与邮箱
+
+计划 `docs/superpowers/plans/2026-10-14-accounts-foundation-email.md`。邮箱用于注册确认、找回密码与绑定;验证码是 6 位数字,有效 10 分钟、最多试错 5 次;同一邮箱两次发码之间至少间隔 60 秒。默认 `EMAIL_BACKEND=off`:邮箱相关接口返回 503。
+
+### 必需配置
+
+三项缺一,邮箱功能保持关闭,配置诊断报 `email_not_configured`:
+
+| 变量 | 说明 |
+|---|---|
+| `IDENTITY_PEPPER` | 邮箱身份的 HMAC 密钥,至少 32 字符,**只从环境变量读取**(不进后台)。生成示例:`python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `SETTINGS_ENCRYPTION_KEY` | 与上文「加密主密钥」相同;用来加密保存的邮箱地址与 SMTP 授权码 |
+| `EMAIL_BACKEND` | `smtp` 才真实发信。`console` 只在日志里记「已发送」,用户收不到,仅供开发 |
+| `SMTP_HOST`、`SMTP_PORT`、`SMTP_SECURITY`、`SMTP_USER`、`SMTP_PASSWORD` | 发信服务器与账号。`SMTP_SECURITY=ssl` 配 465(默认),`starttls` 配 587。`SMTP_FROM` 留空即用 `SMTP_USER` |
+
+其他常用项(全部可热改,不用重启):`EMAIL_DAILY_GLOBAL`(全站每日发码上限)、`EMAIL_CODES_PER_TARGET_DAILY`(同一邮箱每日上限)、`EMAIL_CODES_PER_IP_HOURLY`(同一 IP 每小时上限)、`EMAIL_DOMAIN_MODE` 与 `EMAIL_DOMAIN_LIST`(域名策略,默认拒绝内置的临时邮箱域名)、`EMAIL_REGISTRATION_REQUIRED`(关 = 旧注册方式,应急用)、`EMAIL_BINDING_REQUIRED` 与 `EMAIL_BINDING_DEADLINE`(强制绑定)。
+
+### IDENTITY_PEPPER 备份(必读)
+
+- 丢失或更换 `IDENTITY_PEPPER` = **所有邮箱登录和「邮箱是否已被占用」的判断全部失效**(HMAC 对不上),而且无法从密文恢复。
+- 它必须与 `SETTINGS_ENCRYPTION_KEY` **分开备份**,并且不要放进数据库备份或管理后台。
+- 丢失 `SETTINGS_ENCRYPTION_KEY` 会让已加密的邮箱地址、后台保存的密钥与 TOTP 无法读取;它也要单独备份。
+- 不要为了「轮换」而改 pepper;它没有轮换流程。
+
+### 上线顺序
+
+与 `docs/superpowers/plans/2026-10-14-accounts-INDEX.md` §10 一致,并补充 SMTP 体检的位置:
+
+1. 备份数据库;确认两把密钥已设置,并且各自已单独备份。
+2. 设置 `SMTP_*`、`EMAIL_DAILY_GLOBAL`、`EMAIL_DOMAIN_MODE`,**`EMAIL_BINDING_REQUIRED=false`**。若暂时没有可用邮箱,先设 `EMAIL_REGISTRATION_REQUIRED=false`,注册保持旧方式。
+3. 部署新版本(由运维执行 `docker compose up -d --build`)。
+4. 在管理后台运行 **SMTP 体检**(上游 `smtp`):它只连接、加密并登录,不发信。通过后再把 `EMAIL_BACKEND` 设为 `smtp`。体检只存在于本版本,所以它在新版本已运行、`EMAIL_BACKEND` 仍为 `off` 时进行:不需要任何用户流量,也不必等到发信开启。
+5. 配置诊断中不应再有 `email_not_configured`。用自己的两个不同服务商的邮箱各走一遍注册与找回密码。
+6. 发公告与更新日志,按下方清单通知老用户。
+7. 公告约 7 天后:设置带时区的 `EMAIL_BINDING_DEADLINE`(例如 `2026-10-28T00:00+08:00`),再把 `EMAIL_BINDING_REQUIRED` 设为 `true`。没有截止时间就会立即强制;配置诊断会提示 `binding_without_deadline`。
+
+**回退**:`EMAIL_BINDING_REQUIRED=false` 立即解除强制;`EMAIL_REGISTRATION_REQUIRED=false` 恢复旧注册;`EMAIL_BACKEND=off` 关闭发信(此时若注册仍要求邮箱,注册会 503)。数据库迁移回退前先备份,迁移的 downgrade 没有在实际数据库上验证。
+
+### QQ 邮箱 SMTP 注意
+
+- `SMTP_PASSWORD` 填的是 QQ 邮箱的**授权码**,不是登录密码。
+- 服务商的日发信量、频率限制与临时封禁条件由服务商决定并可能变化,本文档不记录具体数字。`EMAIL_DAILY_GLOBAL` 请设在明显低于你自己实测到的限额处。
+- 被限流或封禁时,注册与找回密码都会失败,原因在服务商侧,本服务无法修复。
+- 到达率与垃圾箱行为因服务商与收件方而异,上线前用真实邮箱测试。
+- QQ 邮箱只适合小规模内测。公开开放前应换成事务邮件服务;接口已与 QQ 解耦,换服务商只需改 `SMTP_*`。
+
+### 通知老用户的清单
+
+- [ ] F-P2 部署后、强制前:管理后台用户列表用「未绑定邮箱」筛选,只看人数与用户名。
+- [ ] 公告横幅与更新日志:绑定截止时间、绑定入口,以及「桌面端请先在网页登录并绑定」。
+- [ ] 仍记得密码的用户:网页登录后顶部横幅引导绑定。
+- [ ] 忘了密码又没绑定邮箱的用户:公告写明「请联系管理员」。管理员在管理后台「重置密码」(临时密码只显示一次),用户登录后立即绑定邮箱并改密。
+- [ ] 截止前 1 天再发一次公告;截止后观察 `email_binding_required` 的 403 数量(只看状态码,不看内容)。
+- [ ] 截止后仍有人无法登录:管理员可临时关闭 `EMAIL_BINDING_REQUIRED`(热改),已绑定的用户不受影响。
 
 ## 上游服务选择
 
@@ -411,6 +610,57 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 - **镜像**:最终阶段以 root 安装 `ffmpeg`(含 `ffprobe`)再切回 `app` 用户;镜像增大多少**未测**(需要 `docker compose build`,按仓库规则只在需要时做,结果写进 `docs/superpowers/plans/2026-10-13-video-import-results.md`)。转码速度取决于机器,**未测**;单条时长上限给它封顶。
 - **单 worker**:队列、票据、分片锁都在进程内,与房间、智能体一样只支持 `--workers 1`。
 
+## 影视配音(计划 2026-10-21-l5-dubbing)
+
+选一段连续句子(占位上限 12 句、90 秒),扮演一个角色,逐句录音并打分。代码在 `app/dubbing/`(纯函数 `clip.py`、`scoring.py`,配音记录 `takes.py`),接口 `routers/dubbing.py`(`/api/dubbing/*`),管理端角色标注 `routers/admin_dubbing.py`;角色的读写与智能建议在 `app/library/roles.py`、`roles_ai.py`。迁移 `0029_dubbing`。
+
+- **开关,默认关**:`DUBBING_ENABLED=false` 时 `GET /api/dubbing/config` 返回 `{"enabled": false, …}`,其余 `/api/dubbing/*` 在登录后返回 404 `Dubbing is disabled`。配音也需要跟读库可用(`LIBRARY_ENABLED` 与 ffmpeg / ffprobe)。管理端的角色标注接口不受此开关影响,可以提前标注。
+- **角色**:句子标 `A`–`F`(手动,或每个片段一次 LLM 建议,只返回草稿,确认后再保存)。精选库的角色由管理员标一次,保存时同步到所有已有副本;副本对学习者只读。智能建议受 `DUBBING_SUGGEST_DAILY_PER_USER`(每人每天句数,默认 120,占位)与全站 `LIBRARY_AI_DAILY_GLOBAL` 约束,提示词 `library.roles` 可在管理端编辑;管理端建议每次最多 40 句,计入 `LIBRARY_CATALOG_AI_DAILY`。
+- **评分**:只调用已有的 `POST /api/speech/assessments`(`source=library`),服务端按保存的评测结果计算同步度。配音的每句成绩计入该句的跟读最好成绩(写进 `library_attempts.dub_id`)。删除配音记录只删记录,评测与录音留在练习历史中。
+- **占位与未验证**:片段上限、句子窗口(前 300 ms、后 600 ms)、±400 ms 容忍、时长比区间、权重 60 / 20 / 20、并发与额度全部是**占位**,未用真实素材校准。同步度依赖讯飞 ISE 的逐词偏移,其起点与精度**未在真实上游核对**(需要用户同意评测费用);Omission 词的偏移未核对。客户端上报的 `rec_start_ms` 与 `voiced_ms` 可以被用户自行调整,只影响本人的成绩。
+
+## 对象存储(计划 2026-10-21-l1)
+
+规格:[docs/superpowers/specs/2026-10-21-object-storage-fsrs-dubbing-design.md](../docs/superpowers/specs/2026-10-21-object-storage-fsrs-dubbing-design.md) §1、§5、§6。代码在 `app/storage/`(底层,只有 `services`、`realtime`、`rooms`、`library`、`admin`、`routers` 与 `main.py` 导入)。
+
+- **默认不变**:`STORAGE_BACKEND=local` 时所有文件仍在 `DATA_DIR` 下,磁盘布局与以前逐字节一致。只有你设置 `STORAGE_BACKEND=s3` 才会改用对象存储。
+- **三种档案**:`local`(数据目录);`s3`(主存储,`STORAGE_BACKEND=s3` + `S3_*`);`s3_fallback`(迁移观察期的旧存储,`STORAGE_FALLBACK` + `S3_FALLBACK_*`)。任何 S3 兼容端点都用同一份代码;只靠 API 的公共子集,不用预签名、版本或生命周期。
+- **什么会进对象存储**:库与精选库的媒体、封面、`transcript.json`;评测录音(`recordings/`);房间语音与暂存 WAV(`room_audio/`);头像(`avatars/`);数据库备份(`backups/`,仅 S3 主存储时上传一份副本)。**不会**:ffmpeg / yt-dlp 的暂存目录(仍在本机 `_tmp`)、SQLite 数据库本身、词典文件。
+- **播放**:仍是服务端代理流式(`storage/http.py`),票据每次请求重验,支持 `Range`;本地后端保持 `FileResponse`。预签名 302 不做(R18)。
+- **厂商对照(未验证,切换前在目标端跑一遍冒烟)**:MinIO 与多数自建需要 `S3_PATH_STYLE=true`;AWS、阿里云 OSS、腾讯 COS 多数用 virtual-hosted(`false`);Cloudflare R2 的 `S3_REGION=auto`。阿里云 OSS 的 S3 兼容层对 path-style 与部分 API 有限制,**未验证**。
+- **桶必须私有**:不设匿名读写策略。备份里有用户数据,和媒体一样。
+- **密钥**:`S3_ACCESS_KEY` / `S3_SECRET_KEY`(及回退的同名项)只能写在环境变量里,为专用钥匙(只读写这一个桶),不要用厂商的根账号。它们与 `S3_ENDPOINT` 都不进日志、不进错误信息、不进管理端设置页;管理端 doctor 只报告变量名。
+- **MinIO 开发环境**:`docker compose --profile minio up -d` 会起 `minio` 与建桶的 `minio-init`(只绑本机 `127.0.0.1`,镜像标签**未验证**)。`server/.env` 设 `STORAGE_BACKEND=s3`、`S3_ENDPOINT=http://minio:9000`、`S3_PATH_STYLE=true`、`S3_BUCKET=enjoy` 与专用钥匙。
+
+### 迁移(本地 → S3,或 MinIO → 云厂商)
+
+迁移命令 `python -m app.storage.migrate`:**只复制、不移动**,源数据在整个观察期内保持原样;每个对象复制后比对大小与 sha256;清单(键与摘要)是本机运维文件,不要外传;日志与输出只有计数、字节与错误码。退出码 `0` 全部校验通过且库与存储无差异;`2` 有失败或数据库指向的对象缺失;`3` 前置条件不满足(同一档案、备份失败、PostgreSQL 未确认已 `pg_dump`)。
+
+1. `docker compose exec server python -m app.storage.migrate --from local --to s3 --dry-run`:只建清单与统计,不写目标、不备份。
+2. `docker compose exec server python -m app.storage.migrate --from local --to s3`:先做 SQLite 快照(与管理端备份同名规则,管理端可见),再在线复制;可以中断,重跑只补缺的。PostgreSQL 请先自己 `pg_dump`,再加 `--pg-backup-done`。
+3. 在管理端把 `maintenance_mode` 设为 `read_only`,并等跟读库 / 精选库的处理队列空闲(进行中的条目会在管理端的条目列表里显示)。
+4. 再跑一次同样的命令(增量,只补迁移期间新写入的对象)。
+5. `--verify-only`(只核对,不写)与 `--reconcile-only`(只对账:库里有、存储没有的 → 退出 2;存储有、库里没有的只报告,例如孤儿或观察期删除的副本)。对账**从不删除任何东西**。
+6. 把 `STORAGE_BACKEND=s3`、`STORAGE_FALLBACK=local` 写进 `server/.env` 并重启。读不到的对象会经回退读取并计数。
+7. 关闭维护模式;在管理端「数据」页看「回退命中」,以及 doctor 的 `storage_fallback_active`。
+8. 回退命中长期为 0 后,清空 `STORAGE_FALLBACK` 并重启。源数据何时删除由你决定;迁移命令不删。
+
+**回滚**:把 `STORAGE_BACKEND` 改回 `local` 并重启(源数据未动)。如果切换后已有新写入,先执行 `--from s3 --to local` 把新对象补回本地。
+
+**MinIO → 云厂商**:把旧 MinIO 写进 `S3_FALLBACK_*`,新厂商写进 `S3_*`,然后 `--from s3_fallback --to s3`,其余步骤相同。**切换 = 先迁移对象再改环境变量**,不是只改环境变量。
+
+**隐私后果**(观察期内):被删除的用户或条目,其旧副本仍在源存储里,直到你退役源存储;对账报告会把它们算作「存储有、库里没有」。
+
+### 精选库 bundle(开发 → 生产,不跑流水线)
+
+管理端对一条就绪、未退役的精选条目点「导出 bundle」:在存储里写 `bundles/<条目>/manifest.json`(元数据、句子与译文、媒体与封面的键、字节与 sha256),**不含**任何用户数据、副本数、发布状态或审计。在另一套实例上,先把两个前缀(`library/_catalog/<条目>/`、`bundles/<条目>/`)同步到它的桶(`mc mirror`,**未验证**:它是否保留用户元数据;导入时缺少元数据会流式重算 sha256,所以不影响正确性),再在管理端「从 bundle 导入」选择它并填写理由。导入只建行、不识别、不翻译、不花模型费用,条目默认未发布。
+
+### 管理端与自检
+
+- 数据页显示「存储后端」「回退」「回退命中」(只显示名称,不显示端点或桶名)。
+- 医生页:S3 主存储不可达(错误)、正在使用读回退(警告)、最近一份备份只在本机(警告)。每次只探测一次桶,从不对每个对象发请求。
+- 清理工具(孤儿录音、房间语音)改走存储的 `list` / `delete`;用户删除时录音目录按前缀删除,失败只记录类名,不再因为提交后的删除而报错。
+
 ## 成本保护
 
 - `/api/ai/*`、`POST /api/speech/tokens` 与 `POST /api/speech/assessments` 按用户限流,上限由 `AI_RATE_LIMIT_PER_MINUTE` 控制(默认 60,超出返回 429)。
@@ -524,3 +774,4 @@ Docker 构建会在 Node 阶段运行 `yarn workspaces focus web` 与 `yarn work
 - 桌面客户端在创建 segment 后仍会把片段音频上传到 `storage.enjoy.bot`(`enjoy/src/main/db/models/segment.ts`、`main/storage.ts`)。这是上游既有行为,不在本后端覆盖范围内。
 - 练习清单(`practice_items`)与词汇本(`vocabulary_items`)的去重在应用层完成,没有唯一索引:两个并发的相同 POST 可能各插一行(见 `server/app/routers/practice_items.py` 的 "Known race" 注释)。词汇本沿用同一取舍。
 - 配置快照来自官方公开接口,需要时用 `fetch_config.py` 手动刷新。
+- 邮箱功能:同一邮箱的冷却与每日上限可能被并发请求抢先突破,此时仍受全站每日上限与按 IP 限流约束;强制绑定开始时,已经打开的 WebSocket 不会被断开;绑定邮箱不需要密码(规格 §4.3)。已知限制的完整列表与未验证项见 `docs/superpowers/plans/2026-10-14-accounts-foundation-email.md` 的「执行结果」。

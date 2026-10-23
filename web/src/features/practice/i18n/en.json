@@ -18,7 +18,7 @@
         "deleteDescription": "The recording and its score will be removed.", "audioUnavailable": "The recording is unavailable."
       },
       "historyTitle": "History", "empty": "No practice yet.",
-      "home": { "shadowing": "Read aloud", "more": "Records", "recent": "Recent scores", "all": "All" },
+      "home": { "title": "Practice", "shadowing": "Read aloud", "shadowHint": "Read a sentence aloud and get a pronunciation score", "draftLabel": "Draft: ", "shadowStart": "Start reading aloud", "more": "Records", "recent": "Recent scores", "all": "All" },
       "list": {
         "entry": "List", "title": "Practice list", "empty": "No saved sentences yet. Save sentences from chat or lookups.",
         "saved": "Saved to your practice list.", "deleteConfirm": "Remove this sentence from your list?",

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiClient } from "~/api/client";
-import { PracticePage } from "~/features/practice";
+import { ShadowPage } from "~/features/practice";
 import i18n from "~/i18n";
 import { ALL_OFF, LINK_KEYS, setLinkFlags, type LinkFlags } from "~/lib/extension-points";
 import { createFetchMock, json } from "~/test/fetch-mock";
@@ -16,7 +16,7 @@ const ROUTES = {
   "GET /api/links/today-words": () => json({ items: [{ key: "brew", word: "brew", example: { en: "She brewed a pot of tea.", zh: "她泡了一壶茶。" } }] }),
 };
 const render = (mock: ReturnType<typeof createFetchMock>) =>
-  renderWithProviders(<PracticePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/practice" });
+  renderWithProviders(<ShadowPage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/practice/shadow" });
 
 beforeEach(async () => {
   localStorage.clear();

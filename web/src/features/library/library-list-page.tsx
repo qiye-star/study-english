@@ -11,6 +11,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { SegmentedControl } from "~/components/segmented-control";
 import { PageHeader } from "~/layout/page-header";
+import { HOME_PATH } from "~/lib/home-route";
 import { AddSheet } from "./add-sheet";
 import { CatalogView } from "./catalog-view";
 import { fetchLibraryConfig, type LibraryConfig } from "./config";
@@ -79,7 +80,7 @@ export function LibraryListPage() {
     );
   }
   if (!config) return <PageLoading />;
-  if (!enabled) return <Navigate to="/practice" replace />;
+  if (!enabled) return <Navigate to={HOME_PATH} replace />;
   // R-W1:`?tab=catalog` 只在服务端开着精选库时生效,否则被忽略(回到「我的」)
   const tab: "mine" | "catalog" = config.catalog && params.get("tab") === "catalog" ? "catalog" : "mine";
   const onTab = (next: "mine" | "catalog") => setParams(next === "catalog" ? { tab: "catalog" } : {}, { replace: true });

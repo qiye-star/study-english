@@ -35,6 +35,60 @@ def test_security_and_ops_warnings():
     assert set(found) <= set(CODES)
 
 
+def _email_findings(**kw):
+    base = dict(registration_mode="closed", email_registration_required=False)
+    return {f.code: f for f in diagnose(make_settings(**{**base, **kw}), OK)
+            if f.code in ("email_not_configured", "email_console_backend", "binding_without_deadline")}
+
+
+def _email_keys():
+    from cryptography.fernet import Fernet
+    from tests.accounts_helpers import PEPPER
+    return dict(identity_pepper=PEPPER, settings_encryption_key=Fernet.generate_key().decode())
+
+
+def test_email_backend_without_keys_is_an_error():
+    found = _email_findings(email_backend="smtp")
+    assert found["email_not_configured"].level == "error" and "email_backend" in found["email_not_configured"].keys
+    assert "email_not_configured" not in _email_findings()  # backend off: nothing to configure
+
+
+def test_ready_email_backend_is_fine_and_console_warns():
+    keys = _email_keys()
+    assert _email_findings(email_backend="smtp", **keys) == {}
+    found = _email_findings(email_backend="console", **keys)
+    assert list(found) == ["email_console_backend"] and found["email_console_backend"].level == "warn"
+
+
+def test_forced_binding_needs_a_ready_email_and_a_deadline():
+    found = _email_findings(email_binding_required=True, email_binding_deadline="2026-12-01T00:00+08:00")
+    assert found["email_not_configured"].level == "error"
+    assert "email_binding_required" in found["email_not_configured"].keys
+    found = _email_findings(email_binding_required=True, **_email_keys(), email_backend="smtp")
+    assert list(found) == ["binding_without_deadline"]
+    assert found["binding_without_deadline"].level == "warn"
+    assert found["binding_without_deadline"].keys == ("email_binding_deadline",)
+    assert "binding_without_deadline" not in _email_findings()  # not forced: no warning
+
+
+def test_registration_that_needs_email_is_an_error_until_email_is_ready():
+    """The shipped default (EMAIL_REGISTRATION_REQUIRED=true, EMAIL_BACKEND=off) answers every registration 503."""
+    found = _email_findings(email_registration_required=True)
+    assert found["email_not_configured"].level == "error"
+    assert "email_registration_required" in found["email_not_configured"].keys
+    assert "email_not_configured" not in _email_findings(email_registration_required=True, email_backend="smtp",
+                                                         **_email_keys())
+    assert "email_not_configured" not in _email_findings(email_registration_required=False)
+
+
+def test_email_diagnostic_codes_are_registered_and_messages_hold_no_values():
+    for code in ("email_not_configured", "email_console_backend", "binding_without_deadline"):
+        assert code in CODES
+    found = _email_findings(email_backend="smtp", smtp_host="smtp.secret-host.test", smtp_password="pw-secret",
+                            email_binding_required=True)
+    assert "secret-host" not in repr(found) and "pw-secret" not in repr(found)
+
+
 def test_findings_sorted_by_severity():
     found = diagnose(make_settings(realtime_enabled=True, registration_mode="open"), OK)
     order = {"error": 0, "warn": 1, "info": 2}
@@ -54,3 +108,59 @@ async def test_doctor_endpoint_gathers_facts(app, client):
     assert {"registration_open", "no_encryption_key", "superadmin_without_totp", "insecure_cookie"} <= set(found)
     assert set(found) <= set(CODES)
     assert_no_secrets(r.json(), app.state.settings)
+
+
+def test_legacy_env_invite_code_is_an_info_notice_that_never_shows_the_code():
+    """invites v2 S8: the unlimited INVITE_CODE is kept, but flagged as not recommended (no attribution, no revoke)."""
+    found = {f.code: f for f in diagnose(make_settings(registration_mode="invite", invite_code="ENV-CODE-123"), OK)}
+    notice = found["legacy_invite_code"]
+    assert notice.level == "info" and notice.keys == ("invite_code",)
+    assert "不推荐" in notice.message_zh and "无归属" in notice.message_zh
+    assert "ENV-CODE-123" not in notice.message_zh
+    assert "legacy_invite_code" not in codes(diagnose(make_settings(registration_mode="invite", invite_code=""), OK))
+
+
+# ---- captcha (ALTCHA, plan A1; spec §9) ----
+from tests.captcha_helpers import SECRET as CAPTCHA_SECRET  # noqa: E402
+
+
+def _captcha_findings(**kw):
+    return {f.code: f for f in diagnose(make_settings(**kw), OK)
+            if f.code in ("captcha_secret_missing", "captcha_always_blocks_desktop", "captcha_without_proxy_headers")}
+
+
+def test_captcha_secret_missing_is_an_error():
+    found = _captcha_findings(captcha_mode="adaptive", captcha_secret="")
+    assert found["captcha_secret_missing"].level == "error"
+    assert found["captcha_secret_missing"].keys == ("captcha_mode", "captcha_secret")
+    assert "captcha_secret_missing" not in _captcha_findings(captcha_mode="adaptive", captcha_secret=CAPTCHA_SECRET)
+    assert "captcha_secret_missing" not in _captcha_findings(captcha_mode="off", captcha_secret="")  # off: nothing
+
+
+def test_captcha_always_warns_about_desktop():
+    found = _captcha_findings(captcha_mode="always", captcha_secret=CAPTCHA_SECRET)
+    assert found["captcha_always_blocks_desktop"].level == "warn"
+    assert found["captcha_always_blocks_desktop"].keys == ("captcha_mode",)
+    assert "captcha_always_blocks_desktop" not in _captcha_findings(captcha_mode="adaptive",
+                                                                    captcha_secret=CAPTCHA_SECRET)
+
+
+def test_captcha_without_proxy_headers_warns():
+    found = _captcha_findings(captcha_mode="adaptive", captcha_secret=CAPTCHA_SECRET, trust_proxy_headers=False)
+    assert found["captcha_without_proxy_headers"].level == "warn"
+    assert found["captcha_without_proxy_headers"].keys == ("trust_proxy_headers",)
+    assert "captcha_without_proxy_headers" not in _captcha_findings(captcha_mode="adaptive",
+                                                                    captcha_secret=CAPTCHA_SECRET,
+                                                                    trust_proxy_headers=True)
+
+
+def test_captcha_off_has_no_captcha_findings():
+    assert _captcha_findings(captcha_mode="off", captcha_secret="", trust_proxy_headers=False) == {}
+
+
+def test_captcha_diagnostic_codes_are_registered_and_messages_hold_no_values():
+    for code in ("captcha_secret_missing", "captcha_always_blocks_desktop", "captcha_without_proxy_headers"):
+        assert code in CODES
+    found = _captcha_findings(captcha_mode="always", captcha_secret=CAPTCHA_SECRET, trust_proxy_headers=False)
+    text = repr(found)
+    assert CAPTCHA_SECRET not in text and "test-captcha-secret" not in text

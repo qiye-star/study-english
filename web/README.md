@@ -32,6 +32,7 @@
 
 - **自动朗读**默认开(会话配置 `auto_speak`,缺省即开;设置面板与顶栏喇叭可关):只读"用户这次操作之后完成的新回复"与场景开场白,从不读历史;录音/转写中、页面在后台、回复出错、已读过、被更新的发送取代时不读。iOS 需要在点击里解锁播放器:发送、重试、结束录音、点场景时同步调用 `primeAudioElement`(共享元素 `sharedAutoplayAudio()`),被拦截时显示一次"点此朗读"。**每条回复多一次语音合成调用(有成本)。** 编排见 `src/features/chat/use-auto-speak.ts`。
 - **语速**:全局偏好 `enjoy-web.playback.rate`(0.75×/1×/1.25×,退出登录清除),`playbackRate` + `preservesPitch` 作用于所有朗读与语音气泡回放(`src/lib/playback-rate.ts`),不重新合成。
+- **朗读音色**(`/me/voice`,「我的 → 朗读音色」):按场景选朗读音色,三个场景各自一行、各选一个模型和音色——单词(词汇、单词本、听写、选中单词的朗读)、句子(跟读范读、拼写句子)、对话消息(对话与房间的消息朗读、自动朗读)。选「默认」跟随服务端 `ai.defaultTts`;「试听」用固定句子,在点击里解锁音频。偏好存在本机 `enjoy-web.tts.voice`,退出登录清除;保存的音色若已不在服务端音色列表里,该场景退回默认并提示。对话里会话设置或角色显式选过的音色仍优先于「对话消息」。只影响朗读播放,不改实时通话音色与 LLM 请求。**未在真机验证:** iOS 上试听与对话自动朗读的解锁。
 - **场景与难度**:会话配置 `scenario`/`level`;预设提示词与开场白在 `src/features/chat/scenarios.ts`,难度提示词在 `levels.ts`,系统提示词由 `chat-request.ts` 的 `effectiveSystemPrompt` 拼装。新建会话只写场景与难度,模型/音色在运行时取服务端默认值。
 - **"不会说?"提示与复盘**:客户端调用 `/api/ai/chat/completions`(JSON 模式、固定提示词、严格解析);提示按"最后一条助手消息 + 难度"缓存在 IndexedDB;复盘结果写进会话配置 `recap`(≤ 约 6 KB,过期提示"重新生成")。
 - **进度页** `/progress`(`GET /api/stats`,带本机时区偏移)与**词汇本** `/vocabulary`(`/api/vocabulary`,盒子法 1/2/4/7/15/30 天);查词抽屉、复盘、进度页都能"加入词汇本"。
@@ -73,15 +74,15 @@
 
 ## 段位赛与联机练习(计划 2026-10-09)
 
-两个功能都由服务端开关控制(`RANK_ENABLED`、`ROOMS_ENABLED`,默认关,见 `server/README.md`「段位赛与联机练习」)。关闭时网页与原来完全一样:底部导航 3 个标签,练习页与「我的」没有段位卡,页面加载时只多请求一次 `GET /api/rank/config` 与 `GET /api/rooms/config`(`src/layout/feature-flags.test.tsx` 断言);直接打开 `/rank`、`/rooms` 只显示"未开启"。
+两个功能都由服务端开关控制(`RANK_ENABLED`、`ROOMS_ENABLED`,默认关,见 `server/README.md`「段位赛与联机练习」)。关闭时网页与原来完全一样:底部导航 3 个标签,练习页没有段位卡,练习页只多请求一次 `GET /api/rank/config`;`GET /api/rooms/config` 只在进入对话区(`/chat`、`/rooms`、`/rooms/ended`)与「我的」时请求一次(同一 ApiClient 缓存,导航本身不再读取;`src/layout/feature-flags.test.tsx`、`src/layout/bottom-nav.test.tsx` 断言);直接打开 `/rank`、`/rooms` 只显示"未开启"。
 
-- **段位赛**(`src/features/rank`):练习页与「我的」顶部的段位卡 → `/rank`(段位、小段进度、阶段练习、赛季、晋级赛卡)→ `/rank/match/:id` 晋级赛 → 结果页;`/rank/achievements` 成就墙。晋级赛**只收语音**:复用共享的按住说话长条但传 `allowToText={false}`,没有「转文字」落点(上滑只能取消);考官台词默认只播放不显示(「看文字」可开);iOS 在点击/松手的同步阶段预热播放。评分失败的场次在服务端仍算「进行中」(会挡住新的晋级赛),错误卡同时提供「重新打分」与「放弃本场」。未通过不使用红色。
-- **联机练习**(`src/features/rooms`,底部第 3 个标签「联机」):输入 6 位房间号加入或建房;群聊经 `WS /api/rooms/ws`(一次性票据,不进日志与错误信息),断线按 `last_seq` 重连补齐,服务端重启(1012)自动重连;`@ai` 的回答所有人可见;私聊助手(组句)只给自己,一键发到群里;房主可锁定、关闭 AI、移出成员、结束房间;已结束的房间只读可查历史;可举报他人消息。
+- **段位赛**(`src/features/rank`):练习页顶部的段位卡 → `/rank`(段位、小段进度、阶段练习、赛季、晋级赛卡)→ `/rank/match/:id` 晋级赛 → 结果页;`/rank/achievements` 成就墙。晋级赛**只收语音**:复用共享的按住说话长条但传 `allowToText={false}`,没有「转文字」落点(上滑只能取消);考官台词默认只播放不显示(「看文字」可开);iOS 在点击/松手的同步阶段预热播放。评分失败的场次在服务端仍算「进行中」(会挡住新的晋级赛),错误卡同时提供「重新打分」与「放弃本场」。未通过不使用红色。
+- **联机练习**(`src/features/rooms`,「对话」标签里的「AI 对话 | 联机」切换;联机关闭时没有切换条;URL 仍是 `/rooms…`,邀请链接不变;切换条在 `src/pages/chat-hub.tsx`):输入 6 位房间号加入或建房;群聊经 `WS /api/rooms/ws`(一次性票据,不进日志与错误信息),断线按 `last_seq` 重连补齐,服务端重启(1012)自动重连;`@ai` 的回答所有人可见;私聊助手(组句)只给自己,一键发到群里;房主可锁定、关闭 AI、移出成员、结束房间;已结束的房间只读可查历史;可举报他人消息。
 - 与服务端的契约:`src/features/rank/rank-contract.test.ts`、`src/features/rooms/rooms-contract.test.ts` 读取 `server/tests/fixtures/{rank,rooms}_contract.json`(由服务端测试对真实应用录制/核对),逐键绑定 TypeScript 类型。
 - **联机练习 v2**(spec `docs/superpowers/specs/2026-10-10-rooms-v2-design.md`;服务端见 `server/README.md`「联机练习 v2」):创建表单 7 项设置(房间名、场景、水平、加入方式、人数、AI 公开回答、允许语音);「需房主同意」的房间凭号申请、房主在横幅里同意后自动进房;邀请链接与本地生成的二维码(`/rooms/invite/:token`,直接进入);助手改为停靠在输入条上方的面板(三档高度,键盘弹出收成一行,不遮挡聊天);语音消息(与对话页同一手势,上传 16 kHz WAV,服务端存 MP3;转写与翻译全房共享,「转文字」「翻译」手动展开或在「我的」里开自动转文字);引用回复、6 个表情回应、正在输入/正在说话;房间结束后的学习小结(`/rooms/r/:roomId/summary`)。语音与小结各有服务端子开关(默认关)。语音配额为每人每天 200 MB + 100 条。
 - 契约:`src/features/rooms/create/rooms-v2-contract.test.ts`、`extras/extras-contract.test.ts`、`voice/voice-contract.test.ts` 分别核对 `server/tests/fixtures/rooms_v2_{core,summary,voice}_contract.json`。E2E:`e2e/rooms-v2.spec.ts`(两个上下文审批加入、引用、回应、正在输入、助手面板不遮挡、邀请链接第三人进入;语音上传用契约样例应答,零上游成本)。
 - **联机练习 v2 未在真机验证**(iOS Safari 与 Android Chrome 各一台;结果记在 `docs/superpowers/plans/e2e-results.md`「Rooms v2」):按住说话录 10 秒并发送、上滑取消、上滑转文字;对方播放 MP3(iOS `<audio>` 播放 Blob)、语速跟随;键盘弹出时助手面板收成一行与恢复(`visualViewport`);拖动面板三档;切后台/锁屏再回来重连与补齐;二维码被另一台手机扫码打开;邀请链接从微信等应用内浏览器打开;Android 数字键盘粘贴房间号;自动转文字设置在真机上的表现。
-- **未在真机验证**:iOS 后台/锁屏后房间重连;Android 数字键盘粘贴 6 位房间号;晋级赛在 iOS 上首轮 AI 台词的自动播放;晋级赛按住说话(无转文字落点)的真机手感。
+- **未在真机验证**:iOS 后台/锁屏后房间重连;Android 数字键盘粘贴 6 位房间号;晋级赛在 iOS 上首轮 AI 台词的自动播放;晋级赛按住说话(无转文字落点)的真机手感。「对话 / 联机」合并(计划 L6)的设备清单见 `docs/superpowers/plans/10.21-plans/2026-10-21-l6-results.md`,全部未验证。
 - **未在真机验证**:iOS Safari 点输入框页面跳到顶部的修复(`useAppHeight` 在键盘相关事件后 `scrollTo(0,0)` 复位 + 固定 `html` / `body`,计划 `2026-10-13-ios-keyboard-scroll`)。清单见 `docs/superpowers/plans/2026-10-13-ios-keyboard-scroll-device-checklist.md`。
 
 ## 背单词(计划 2026-10-10)
@@ -131,6 +132,8 @@
 
 ## 液态玻璃皮肤(计划 2026-10-15-liquid-glass)
 
+「我的」首页只留高频项:一张个人卡(头像、用户名、邮箱绑定状态、三项统计,整张卡进入 `/me/account`)、学习、偏好(播放速度、外观、语言、联机自动转文字、安装提示)与设置(账号设置 → `/me/account`:昵称、头像、邮箱、改密、邀请码、退出登录;语法检查规则 → `/me/grammar`,「恢复默认」在顶栏且仍先确认;语音服务 → `/me/services`,只读展示)。
+
 全应用换上液态玻璃外观:`<html data-glass="v2">` 在 `main.tsx` 里对所有人设置(`lib/glass-flag.ts`;旧的开发开关 `?glass=v2` / `enjoy-web.dev.glass` 已移除,首次加载会清掉它);`/library*`(跟读库)与 `/practice/changelog`(更新日志)由 `GlassRoutePin` 钉成 `data-glass="pin"`,继续使用经典皮肤,这些页面用到的共享组件因此永远保留经典分支。外观设置在「我的 → 外观与主题」(`/me/appearance`):预设(清透 / 磨砂 / 实色;默认是清透,从未自定义过的设备没有存储,直接得到它;已存主题保持原值,「恢复默认」回到清透)、透明度、模糊、圆角、边缘高光、阴影、浅色 / 深色各一套背景(渐变、颗粒、纯色、自定义颜色,过深或过浅会自动调整以保证文字可读)、玻璃效果「减弱」。设置只保存在本机(`settings/glass-theme-store.ts`),退出登录时清除。`theme-color` 随所选背景变化(`layout/color-scheme.ts`)。类名约定:在原有类名后追加 `liquid:` 变体与 `components/liquid.ts` 的 `LQ_*` 常量,不改已有令牌的值;守卫测试在 `src/styles/`(`glass-budget`、`locked-pages`、`liquid-colour-guard` 等)。经典分支仍留在代码里(回滚只需还原一次提交);删除它们是后续工作。
 
 **未在真机验证(液态玻璃):** 低端安卓上 3 层模糊的真实模糊质量与帧率;iOS Safari 底部弹窗进入时的模糊闪烁;顶部胶囊淡入与模糊的配合;自定义背景在户外的可读性;石墨色气泡上的查词高亮;单色答题反馈是否一眼可辨;320–360px 宽度下的大标题;iOS 的 `prefers-reduced-transparency`;不支持 `:is()` / `rgb(r g b / a)` 的旧 WebView。清单见 `docs/superpowers/plans/2026-10-15-liquid-glass-device-checklist.md`。
@@ -144,6 +147,23 @@
 E2E:`e2e/chat-home.spec.ts` 需要 E2E 栈开 `CHAT_HOME_ENABLED=true` 与 `CHAT_GREETING_LLM_ENABLED=false`(模板问候,零上游费用),开关关时整个文件跳过;`chat.spec.ts`、`hold-to-talk.spec.ts`、`grammar-prompt.spec.ts`、`progress.spec.ts`、`latency.spec.ts`、`scenario-spot-check.spec.ts` 的进入方式走 `e2e/support/chat.ts`(模式无关,两种开关状态都能过)。`docker-compose.e2e.yml` 与本地未跟踪的 compose 文件不改:这两个变量写进 E2E 栈读取的 `server/.env`(compose 的 `env_file`,已 git 忽略;或起栈后在管理端设置里改,开关可热改)再起栈。守卫(`upstream-guard.ts`)放行 `/api/chat-home/{config,settings,today,greetings/*/seen}`。
 
 **未验证(对话主页):** 全部动画观感与帧率(逐行模糊落下、飞入对齐气泡、极光)、减弱动效下的表现、iPhone PWA / 安卓上的安全区(刘海、Home 横条)、抽屉左滑与 Safari 边缘返回手势、自动朗读(弹窗期间不出声,关闭后点「听」能出声)、320×568 下最长问候不裁切、深色 / 液态皮肤下小字对比度、E2E `chat-home.spec.ts` 与改过入口的老规格(**编写并通过类型检查,未运行**)、真实 LLM 问候的长度与时延。清单见计划 §8。
+## 人机验证(ALTCHA,计划 2026-10-20-captcha-altcha)
+
+注册、找回密码、绑定 / 换绑邮箱发码与登录页使用同一个共享组件(`src/components/captcha/`)。服务端模式由 `GET /api/captcha/config` 给出:
+
+- **`off`:** 不渲染组件,也不请求挑战(`GET /api/captcha/challenge`);网页只做一次配置探测。
+- **`adaptive`:** 注册、找回、发码都先验证;登录只在服务端回 `428 captcha_required` 之后才出现组件并提示,验证后重试。
+- **`always`:** 每个受保护页都显示组件。**会阻止桌面端(`enjoy/`)登录**,生产环境请用 `adaptive`。
+
+工作方式:组件只在需要时懒加载(`React.lazy`),主包只含外壳与门(`useCaptchaGate`)。组件用 ALTCHA 的复选框样式、`auto="off"`,用户勾选后在后台求解。每次带载荷的请求都用**新的一次性载荷**:请求结束(成功或失败)后门调用 `consumed()`,组件重置并在仍需要时重新求解,所以注册第二步、找回第二步都有新载荷。载荷只放在内存里,经请求头 `X-Captcha` 发送,不进 URL、JSON 体、存储或日志。
+
+错误映射:`428 captcha_required` / `428 captcha_invalid` 打开组件并提示;`503 Captcha is not configured` 显示「人机验证未配置」;`404 Captcha is off` 只出现在挑战端点,网页不会在 `off` 下请求它。
+
+**非安全上下文:** 组件要求安全上下文(HTTPS,或 `localhost`)。不满足时不加载组件分块,只显示提示。
+
+**实测(`yarn web:build` 与 `scripts/check-main-bundle.mjs`,gzip 级别 9,kB = 1000 字节):** 主包增量 +0.62 kB(基线 411.67 kB,预算 0.65 kB);组件分块 `captcha-widget` 40.75 kB、外壳分块 `captcha-field` 0.90 kB。设计稿里的「约 34 kB」是估计,以此为准。
+
+**未验证:** 真机解题(iOS Safari、安卓 Chrome、低端机)与解题耗时;移动端解题时长;深色模式下组件的对比度;360–375 px 宽度下的布局与按钮是否截断;组件的读屏与键盘操作;非安全上下文提示在真机上的表现;官方库与组件今后版本的格式兼容。
 
 ## E2E(Playwright,真实上游)
 
@@ -166,6 +186,21 @@ E2E:`e2e/chat-home.spec.ts` 需要 E2E 栈开 `CHAT_HOME_ENABLED=true` 与 `CHAT
 ## 部署
 
 由 `server/Dockerfile` 的 Node 阶段构建并由 FastAPI 同源托管,见 `server/README.md`「手机网页版」。
+
+## 影视配音(计划 L5)
+
+入口是练习首页的「影视配音」卡(配置关闭时不显示)。页面 `/dub`(选素材)与 `/dub/:itemId`(选片段 → 选角色 → 彩排 → 录制 → 结果)使用液态玻璃皮肤;`/library*` 固定在经典皮肤上,所以配音不放在 `/library` 下。代码在 `src/features/dubbing/`,对跟读库只通过 `loadDubbingKit()` 懒加载的工具包。
+
+- **角色:** 句子循环标注 无 → A → … → F,改动防抖 600 ms 合并保存,离开页面前提交。精选副本的角色由管理员标注,对用户只读。「智能建议」只给草稿,点「采用建议」后才保存。
+- **片段(服务端强制,占位):** 至多 12 句、至多 90 秒;片段里必须有所选角色的台词。
+- **录制:** 点「开始录制」在同一次点按里开一次麦并放视频(整段只开一次)。自己的句子窗口是句首前 300 ms 到句尾后 600 ms,窗口内视频静音;3-2-1 倒计时叠在画面上,视频不停。每句窗口关闭即切片并入队评测(并发 2),片段结束后最多等 60 s 再提交。切后台或麦克风被占用即停止,本遍作废。首次录制前提示戴耳机(读写 localStorage 都包在 try/catch 里)。
+- **字幕高亮** 是按字母数把句子时长线性分给各词的估计,不是真实词时间。
+- **结果:** 总分与发音 / 流利 / 同步三项;逐句显示分数与同步依据(按时间 / 按时长 / 无),「原声」「我的」回放互斥;可「再录一遍」或「换片段」。
+- **文案** 只有英文与简体中文(`src/features/dubbing/locales/`),没有西语。
+
+**未做:** 逐句的 ScoreCard 详情弹层;从列表打开旧录音与「未完成」列表(只在结果数据里显示「句子已变化」)。
+
+**未验证:** 上面所有数值(片段上限、窗口、权重、并发、等待时间、建议额度)都是占位,未用真实素材校准。iOS / Android 上播放视频同时开麦的音频会话、回声消除、切后台与来电、PCM 与 MediaRecorder 哪条路径实际生效、字幕高亮的观感,都没有在真机验证。真机清单见 `docs/superpowers/plans/10.21-plans/2026-10-21-l5-dubbing-device-checklist.md`。
 
 ## 选词操作条与本地词典
 

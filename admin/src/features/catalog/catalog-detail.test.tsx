@@ -15,7 +15,7 @@ afterEach(() => {
   session.resetSessionForTests();
 });
 
-vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), fetchCatalogItem: vi.fn(), patchSegment: vi.fn(), deleteItem: vi.fn(), translateMissing: vi.fn(), startReplace: vi.fn() }));
+vi.mock("./api", async (orig) => ({ ...(await orig<typeof import("./api")>()), fetchCatalogItem: vi.fn(), patchSegment: vi.fn(), deleteItem: vi.fn(), translateMissing: vi.fn(), startReplace: vi.fn(), exportBundle: vi.fn(), fetchRoles: vi.fn() }));
 
 const ID = "3f2a9c1e-0000-4000-8000-000000000001";
 const ITEM = { id: ID, title: "Talk", level: "B1", tags: [], licenseNote: null, source: "upload", sourceHost: null, status: "ready",
@@ -31,6 +31,7 @@ describe("CatalogDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.fetchCatalogItem).mockResolvedValue({ item: ITEM, segments: SEGS });
+    vi.mocked(api.fetchRoles).mockResolvedValue({ names: [], speakers: [], editable: true, locked: null });
   });
 
   it("plays the media through the admin route and lists sentences with translations", async () => {
@@ -107,5 +108,33 @@ describe("CatalogDetail", () => {
     });
     render(<CatalogDetail id={ID} onClose={() => {}} onChanged={() => {}} />);
     expect(await screen.findByRole("button", { name: S.detail.purge })).toBeInTheDocument();
+  });
+
+  it("exports a bundle from a ready, live item and reports how many sentences went in", async () => {
+    vi.mocked(api.exportBundle).mockResolvedValue({ catalogId: ID, segments: 2, bytes: 4096 });
+    render(<CatalogDetail id={ID} onClose={() => {}} onChanged={() => {}} />);
+    await userEvent.click(await screen.findByRole("button", { name: S.detail.exportBundle }));
+    await waitFor(() => expect(api.exportBundle).toHaveBeenCalledWith(ID));
+    expect(await screen.findByText(S.detail.bundleExported(2))).toBeInTheDocument();
+  });
+
+  it("hides bundle export when the item is retired, empty, or missing its media", async () => {
+    const variants: Partial<api.CatalogRow>[] = [{ retired: true }, { segCount: 0 }, { mediaMissing: true }, { status: "queued" }];
+    for (const patch of variants) {
+      vi.mocked(api.fetchCatalogItem).mockResolvedValue({ item: { ...ITEM, ...patch }, segments: SEGS });
+      const { unmount } = render(<CatalogDetail id={ID} onClose={() => {}} onChanged={() => {}} />);
+      await screen.findByText("Hello there.");
+      expect(screen.queryByRole("button", { name: S.detail.exportBundle })).toBeNull();
+      unmount();
+    }
+    expect(api.exportBundle).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's refusal when the export fails", async () => {
+    vi.mocked(api.exportBundle).mockRejectedValue(new Error("Item is not ready to export"));
+    render(<CatalogDetail id={ID} onClose={() => {}} onChanged={() => {}} />);
+    await userEvent.click(await screen.findByRole("button", { name: S.detail.exportBundle }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(S.errors["Item is not ready to export"]);
+    expect(screen.queryByText(S.detail.bundleExported(2))).toBeNull();
   });
 });

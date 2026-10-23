@@ -18,7 +18,7 @@
         "deleteDescription": "录音与评分将被删除。", "audioUnavailable": "录音不可用。"
       },
       "historyTitle": "练习历史", "empty": "还没有练习记录。",
-      "home": { "shadowing": "跟读", "more": "记录", "recent": "最近评分", "all": "全部" },
+      "home": { "title": "练习", "shadowing": "跟读", "shadowHint": "读一句英文,马上知道发音得分", "draftLabel": "草稿:", "shadowStart": "开始跟读", "more": "记录", "recent": "最近评分", "all": "全部" },
       "list": {
         "entry": "清单", "title": "练习清单", "empty": "还没有收藏的句子。可以在对话或查词里收藏。",
         "saved": "已加入练习清单。", "deleteConfirm": "从清单中移除这句?",

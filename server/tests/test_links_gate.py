@@ -132,6 +132,7 @@ def test_every_installed_subscription_uses_its_registered_link_key(app):
     """Review Z2: the bus gate applies the three switches only to registered keys; a handler subscribed under
     any other name would ignore the global and per-user switches."""
     from app.links.registry import keys
-    subscribed = set(app.state.learning_bus.links())
+    # lane L4: the `activation.*` subscriptions carry their own master switch (ACTIVATION_ENABLED, plan R3/R4), not a link key
+    subscribed = {k for k in app.state.learning_bus.links() if not k.startswith("activation.")}
     assert subscribed <= set(keys())
     assert subscribed == {"mistakes", "pron_shadow", "chat_words"}

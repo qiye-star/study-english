@@ -13,13 +13,15 @@ import httpx
 import websockets
 from websockets.asyncio.client import connect
 
+from app.providers import email as email_provider
 from app.providers.xfyun import signed_url
 
-UPSTREAMS = ("llm", "grammar", "tts", "whisper", "volc_tts", "asr_stream", "azure", "xfyun")
+UPSTREAMS = ("llm", "grammar", "tts", "whisper", "volc_tts", "asr_stream", "azure", "xfyun", "smtp")
 CODES = ("ok", "auth", "not_found", "timeout", "network", "tls", "bad_response", "not_configured",
          "blocked_private", "cost_not_allowed")
 TIMEOUT = httpx.Timeout(8.0, connect=5.0)
 SCHEMES = ("http", "https", "ws", "wss")
+SMTP_TIMEOUT = 8.0  # seconds for connect + TLS + login together
 
 
 @dataclass(frozen=True)
@@ -152,9 +154,37 @@ async def _xfyun_handshake(s, clock, start, address: str) -> ProbeResult:
     return ProbeResult(True, 101, ms(), "ok")
 
 
+async def _smtp_probe(s, resolver, clock) -> ProbeResult:
+    """Connect, secure (ssl / starttls as configured) and log in; never sends a message. The host is checked with
+    the same public-address guard as the HTTP upstreams first. The result carries a code only: no host, user or
+    password. (smtplib resolves the name again when it connects: the SMTP check is not DNS-pinned.)"""
+    host = (s.smtp_host or "").strip()
+    if not host:
+        return ProbeResult(False, 0, 0, "not_configured")
+    try:
+        address = await resolve_public(host, resolver)
+    except (OSError, ValueError):
+        return ProbeResult(False, 0, 0, "network")
+    if address is None:
+        return ProbeResult(False, 0, 0, "blocked_private")
+    start = clock()
+    ms = lambda: int((clock() - start) * 1000)  # noqa: E731
+    try:
+        async with asyncio.timeout(SMTP_TIMEOUT):
+            await email_provider.check(s)
+    except TimeoutError:
+        return ProbeResult(False, 0, ms(), "timeout")
+    except email_provider.EmailError as exc:
+        code = exc.code if exc.code in ("auth", "timeout", "tls") else "network"
+        return ProbeResult(False, exc.status if code == "auth" else 0, ms(), code)
+    return ProbeResult(True, 0, ms(), "ok")
+
+
 async def probe(s, upstream: str, *, allow_cost: bool = False, resolver=None,
                 clock=time.monotonic) -> ProbeResult:
     """`resolver(host) -> list[str]` replaces DNS in tests."""
+    if upstream == "smtp":
+        return await _smtp_probe(s, resolver, clock)
     url, key = target(s, upstream)
     if not url or not key:
         return ProbeResult(False, 0, 0, "not_configured")

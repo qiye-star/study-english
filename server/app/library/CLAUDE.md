@@ -34,11 +34,13 @@
 - `catalog_import.py` – (计划 SI)一条目录条目的处理:取回(`FetchRequest.system=True`)→ 探测 → 封面 → 转码(视频源 `normalize` ≤ 720p / ≤ 1600 kbps 保留画面,音频源 `audio_only`)→ 字幕 / 识别 →
   分句 → 翻译(`ai.translate_texts`,系统计费)→ ready(未发布);有句子且暂存里有 `replace.flag` → 只替换媒体(`_replace_stage`)
 - `catalog_jobs.py` – (计划 SI)`CatalogJobs`(`app.state.catalog`):一次一个、无轮询、`kick()` 触发、启动恢复;`pending` 在 `tests/background.py`
+- `roles.py` – (L5 R3–R5)句子角色 A–F 与角色名:纯函数 `merge` / `roles_out` / `clean_role` / `clean_name`;读写 `apply` / `apply_catalog` / `sync_catalog_roles`(不提交);`write_segments` 承接角色(按压空白后的文字)。角色名与句子一样是用户内容,不进日志
+- `roles_ai.py` – (L5 R7)角色的 LLM 建议:`render` / `parse`(`N. X`,只收 A–F)、用户侧 `suggest`(按句计额度 `dubbing_suggest`,整段预留,失败退还)、管理端 `suggest_catalog`(系统付费,计入 `library_cat_ai`);提示词 `library.roles` 可编辑
 - `worker.py` – `LibraryWorker`(`app.state.library`):轮询循环、认领、重试退避、取消、清扫、关停;`install(app)`
 
 ## Allowed dependencies
-`app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`。只有 `admin`、`routers` 与 `main.py` 导入本包
-(`tests/test_architecture.py::test_library_layer_rules`)。
+`app.core`、`app.models`、`app.providers`、`app.speech`、`app.services`。只有 `admin`、`routers`、`main.py` 与 `dubbing`(L5)导入本包
+(`tests/test_architecture.py::test_library_layer_rules`、`test_dubbing_layer_rules`)。
 
 ## Wiring
 `main.create_app` 调 `worker.install(app)`;lifespan 起 `tasks["library"] = app.state.library.loop()`,关停时
@@ -69,6 +71,8 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
   最终的识别结果另存为条目目录里的 `transcript.json`(含转写文字:随条目 / 用户删除,换字幕时删除并清 `rebuildable`,不进备份,
   不计入 `library_bytes`)。
 - `low_confidence` 只对 ASR 条目有意义,换字幕时清。
+- 持久文件只经 `app.state.storage`(`app/storage`,`get_store(app)`):媒体、封面、`transcript.json`、精选库文件;删除用前缀 `delete_prefix`,在数据库提交之后做,从不抛出(`paths.drop_persistent`)。先 put、再写库;写库失败只删本次写入的键(`pipeline.forget_keys`)。暂存(`_tmp`、`chunks.json`、WAV)永远在本地;识别需要本地媒体时用 `download_to` 到暂存目录。
+- 精选库 bundle(`catalog_bundle.py`):导出只写 `bundles/<id>/manifest.json`,导入只建行、不跑流水线;导入前检查媒体键必须在 `library/_catalog/<id>/` 之下、大小与 sha256 一致。
 - 单 worker 前提:票据、分片锁、运行中的任务都在进程内。
 - 重新分句(`POST /items/{id}/rebuild`):`ready` + `sub_source=asr` + `rebuildable`;不排队、不扣额度;文字没变的句子保留译文;
   每句标记 `library_segments.flags` 在手动改时间时清空。

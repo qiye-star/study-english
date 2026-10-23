@@ -1,7 +1,7 @@
 {
   "web": {
     "me": {
-      "groups": { "learning": "学习", "voice": "语音", "general": "通用", "server": "账户与服务器" },
+      "groups": { "learning": "学习", "preferences": "偏好", "settings": "设置" },
       "appearance": "外观与主题",
       "stats": {
         "streak": "连续", "speaking": "口语时长", "avg": "平均发音",
@@ -12,9 +12,17 @@
       "today": "今天",
       "roomVoiceAutoText": "联机语音自动转文字", "roomVoiceAutoTextHint": "收到语音消息时自动显示文字和翻译",
       "colorScheme": "外观", "colorSchemeHint": "跟随系统,或固定为浅色、深色",
-      "colorSchemeOptions": { "system": "跟随系统", "light": "浅色", "dark": "深色" }
+      "colorSchemeOptions": { "system": "跟随系统", "light": "浅色", "dark": "深色" },
+      "accountSettings": "账号设置",
+      "emailBadge": { "unbound": "去绑定邮箱", "bound": "已绑定" },
+      "emailUnbound": "未绑定邮箱",
+      "grammarRule": "语法检查规则",
+      "grammarState": { "default": "默认", "custom": "已自定义" },
+      "voiceRow": "朗读音色",
+      "servicesRow": "语音服务"
     },
-    "login": { "tagline": "每天开口说英语。" },
-    "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" }
+    "login": { "usernameOrEmail": "用户名或邮箱", "forgotPassword": "忘记密码?", "createAccount": "注册账号", "passwordReset": "密码已重置,请用新密码登录。", "tagline": "每天开口说英语。" },
+    "install": { "lede": "像 App 一样全屏打开 Enjoy,一点即达。" },
+    "chatHub": { "title": "对话", "label": "对话分区", "chat": "AI 对话", "rooms": "联机" }
   }
 }

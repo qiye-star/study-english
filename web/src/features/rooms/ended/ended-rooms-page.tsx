@@ -1,5 +1,5 @@
 import { ArchiveIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { translateServerError } from "~/api/error-messages";
@@ -22,7 +22,8 @@ function endedDate(iso: string | null, lang: string): string {
 }
 
 /** /rooms/ended:我作为有效成员的全部已结束房间(按结束时间倒序,游标分页)。房主可重新开启(管理员关闭的除外)。 */
-export function RoomsEndedPage() {
+/** `embedded`:放在对话分区里时由 `pages/chat-hub.tsx` 传入(计划 L6 R3/R7);不传 = 与原来相同。 */
+export function RoomsEndedPage({ embedded }: { embedded?: { title?: string; switcher: ReactNode } } = {}) {
   const { api } = useAuth();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -43,7 +44,8 @@ export function RoomsEndedPage() {
   }
   return (
     <>
-      <PageHeader title={t("web.rooms.ended.title")} back="/rooms" />
+      <PageHeader title={embedded?.title ?? t("web.rooms.ended.title")} back="/rooms" />
+      {embedded?.switcher}
       <FeatureGate state={state} disabledText={t("web.rooms.disabled")} onRetry={reload}>
         <div className={`px-gutter pb-8 ${LQ_PAGE}`}>
           <p role="alert" className={cn("text-sub text-ink-2", error ? "mb-2" : "sr-only")}>{error}</p>

@@ -63,6 +63,9 @@ PROMPTS: dict[str, PromptSpec] = {
     "chat.daily_greeting": PromptSpec(
         "chat.daily_greeting", "对话每日问候", "text", frozenset({"language_rule", "facts"}), ("<facts>", "</facts>"), 4000,
         sample_fields=("persona", "language", "facts"), optional=frozenset({"persona"})),
+    "library.roles": PromptSpec(  # plan L5 R7: speaker suggestions for a dubbing clip (default in library/roles_ai.py)
+        "library.roles", "跟读库句子角色建议", "text", frozenset({"text"}), ("<text>", "</text>"), 4000,
+        sample_fields=("text",)),
     "config.chat_agent_templates": PromptSpec(
         "config.chat_agent_templates", "对话情景模板", "json", max_chars=200_000),
 }

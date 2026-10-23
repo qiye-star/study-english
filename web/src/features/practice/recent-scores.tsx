@@ -32,12 +32,12 @@ export function RecentScores() {
   return (
     <SectionGroup title={t("web.practice.home.recent")}
       action={<Link to="/practice/history" className="tap-link text-sub font-semibold text-blue">{t("web.practice.home.all")} ›</Link>}>
-      <div className="grid grid-cols-3 gap-2.5 px-4 pb-3 pt-1">
+      <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-3 pt-1 [scrollbar-width:none]">
         {items.map((a) => {
           const score = a.scores?.pronunciationScore;
           const scored = typeof score === "number" && Number.isFinite(score);
           return (
-            <Link key={a.id} to={`/practice/assessments/${a.id}`} data-testid="recent-score" className={cn("block px-3 py-2.5", LQ_WELL)}>
+            <Link key={a.id} to={`/practice/assessments/${a.id}`} data-testid="recent-score" className={cn("block w-[104px] flex-none px-3 py-2.5", LQ_WELL)}>
               <b className="num block text-headline font-bold tracking-tightest text-ink">{scored ? Math.round(score) : "—"}</b>
               <span className="flex items-center gap-1.5 text-meta text-ink-2">{scored ? <ScoreDot score={score} /> : null}{day(a.createdAt)}</span>
             </Link>

@@ -3,7 +3,7 @@
 import json
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from sqlalchemy import delete, select
 
@@ -37,7 +37,14 @@ class SaveResult:
 
 DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
 # Non-URL settings that form the host their paired key is sent to (review M2).
-HOST_FORMING = {"azure_speech_region": lambda region: f"https://{region}.api.cognitive.microsoft.com/"}
+# The SMTP host and port decide where `smtp_password` is sent (plan A2b). The host is percent-encoded so that
+# `host@other`, `host:25` or `host/x` compare as a different endpoint instead of being parsed as userinfo/port/path;
+# the port gets a fixed placeholder host so only the port number differs.
+HOST_FORMING = {
+    "azure_speech_region": lambda region: f"https://{region}.api.cognitive.microsoft.com/",
+    "smtp_host": lambda host: f"smtp://{quote(str(host).strip(), safe='')}",
+    "smtp_port": lambda port: f"smtp://smtp-port:{port}",
+}
 
 
 def host_of(url: str) -> str:
@@ -111,6 +118,16 @@ def danger_reasons(key: str, old, new) -> list[str]:
         "admin_idle_minutes": _up(old, new),
         "admin_token_ttl_minutes": _up(old, new),
         "admin_audit_retention_days": _up(new, old),
+        # captcha: every change of the mode asks; the cost and counter ceilings only when lowered, the login failure
+        # threshold only when raised (the weakening direction; spec §9, plan A2)
+        "captcha_mode": True,
+        "captcha_cost": _up(new, old),
+        "captcha_counter_max": _up(new, old),
+        "captcha_login_failures": _up(old, new),
+        "captcha_ttl_seconds": _up(old, new),
+        "captcha_challenges_per_minute": _up(old, new),
+        "captcha_flagged_multiplier": _up(new, old),
+        "captcha_login_window_minutes": _up(new, old),
     }
     return [spec.danger] if rules.get(key, True) else []
 
@@ -328,6 +345,8 @@ async def list_settings(session, app, *, role: str = "superadmin") -> dict:
             "invalid": hub.invalid.get(key),
             "drift": bool(row is not None and row.env_fp != _fp(app, env_value)),
         }
+        if spec.choice_info:
+            item["choice_info"] = {v: {"label": label, "help": text} for v, (label, text) in spec.choice_info.items()}
         if spec.secret:
             override_plain = _decrypt(box, row.value) if row is not None and row.secret else None
             item["env_state"] = _state(app, env_value, "env")

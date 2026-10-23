@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import i18n from "~/i18n";
+import { ZH_DEFS_PREF_KEY } from "~/lib/storage";
+import { resetZhDefsModeMemory, setZhDefsMode } from "~/settings/zh-defs-pref";
 import { drawerDefs, type DictEntry } from "./dictionary";
 import { DictionaryResult } from "./dictionary-result";
 
@@ -68,5 +70,40 @@ describe("DictionaryResult · 中文 chip", () => {
     rerender(<DictionaryResult entry={entry({ word: "nation" })} />);
     expect(screen.getByTestId("lookup-zh")).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByTestId("lookup-dict-zh")).toBeNull();
+  });
+});
+
+describe("DictionaryResult · 中文释义点击显示", () => {
+  beforeEach(() => setZhDefsMode("tap"));
+  afterEach(() => {
+    localStorage.removeItem(ZH_DEFS_PREF_KEY);
+    resetZhDefsModeMemory();
+  });
+
+  it("covers the Chinese definitions in place with a glass-well button, reveals on tap and hides again for a new lookup", async () => {
+    const { rerender } = render(<DictionaryResult entry={entry({ defLang: "both" })} />);
+    expect(screen.getByTestId("zh-defs-cover")).toContainElement(screen.getByTestId("lookup-dict-zh"));
+    expect(screen.getByTestId("lookup-dict-zh")).not.toBeVisible();
+    const btn = screen.getByRole("button", { name: "显示中文释义" });
+    expect(btn.className).toContain("--glass-well");
+    await userEvent.click(btn);
+    expect(screen.getByTestId("lookup-dict-zh")).toBeVisible();
+    rerender(<DictionaryResult entry={entry({ defLang: "both", word: "nation" })} />);
+    expect(screen.getByTestId("lookup-dict-zh")).not.toBeVisible();
+    expect(screen.getByRole("button", { name: "显示中文释义" })).toBeInTheDocument();
+  });
+
+  it("English-only with English definitions is unchanged: no cover, the 中文 chip brings Chinese back", async () => {
+    render(<DictionaryResult entry={entry()} />);
+    expect(screen.queryByTestId("zh-defs-cover")).toBeNull();
+    expect(screen.getByTestId("lookup-zh")).toBeTruthy();
+    await userEvent.click(screen.getByTestId("lookup-zh"));
+    expect(screen.getByTestId("lookup-dict-zh")).toBeVisible();
+    expect(screen.queryByTestId("zh-defs-cover")).toBeNull();
+  });
+
+  it("English-only with no English definitions falls back to Chinese, which is covered", () => {
+    render(<DictionaryResult entry={entry({ defsEn: [] })} />);
+    expect(screen.getByTestId("zh-defs-cover")).toBeInTheDocument();
   });
 });

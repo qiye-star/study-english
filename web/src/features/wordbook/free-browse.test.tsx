@@ -9,6 +9,8 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
 import { FreeBrowse } from "./free-browse";
 import { FREE_SET_BROWSE } from "./learned-test-fixtures";
+import { ZH_DEFS_PREF_KEY } from "~/lib/storage";
+import { resetZhDefsModeMemory, setZhDefsMode } from "~/settings/zh-defs-pref";
 import { CONFIG } from "./test-fixtures";
 import type { FreeSet } from "./wordbook-api";
 
@@ -32,7 +34,12 @@ function setup() {
 }
 
 beforeEach(() => { resetServerAiConfigCache(); localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })); void i18n.changeLanguage("zh-CN"); });
-afterEach(() => { localStorage.removeItem("enjoy-web.settings"); void i18n.changeLanguage("en"); });
+afterEach(() => {
+  localStorage.removeItem("enjoy-web.settings");
+  localStorage.removeItem(ZH_DEFS_PREF_KEY);
+  resetZhDefsModeMemory();
+  void i18n.changeLanguage("en");
+});
 
 describe("FreeBrowse", () => {
   it("shows the word first, flips to the full card, and walks through the set", async () => {
@@ -44,6 +51,15 @@ describe("FreeBrowse", () => {
     await userEvent.click(screen.getByRole("button", { name: "下一个" }));
     expect(await screen.findByTestId("question-word")).toHaveTextContent("talk");
     expect(screen.getByRole("button", { name: "上一个" })).not.toBeDisabled();
+  });
+
+  it("covers the Chinese meaning of the flipped card when 中文释义 is on tap", async () => {
+    setZhDefsMode("tap");
+    setup();
+    await userEvent.click(await screen.findByRole("button", { name: "翻面" }));
+    expect(await screen.findByTestId("zh-defs-cover")).toHaveAttribute("data-state", "hidden");
+    await userEvent.click(screen.getByRole("button", { name: "显示中文释义" }));
+    expect(screen.getByText("accept 的释义")).toBeVisible();
   });
 
   it("finishes after the last card and never calls the server for answers", async () => {

@@ -16,7 +16,9 @@ from app.admin import sessions, usage
 from app.core.config import asr_stream_usable, realtime_asr_configured, whisper_fallback_configured
 from app.core.secretbox import box_for, fingerprint
 from app.library import urlcheck
+from app.services.identities import email_ready
 from app.models import AdminAccount, AdminAudit, InviteCode, SettingOverride
+from app.storage import get_store
 from app.wordbook.books import book_by_id, enabled_books
 
 Level = Literal["error", "warn", "info"]
@@ -29,6 +31,9 @@ CODES = (
     "links_breaker_open", "links_dropping", "agents_unavailable", "agents_native_unverified",
     "library_ffmpeg_missing", "library_ytdlp_missing", "library_asr_unavailable", "library_cookies_missing",
     "library_link_proxy_missing", "library_link_dns_private",
+    "email_not_configured", "email_console_backend", "binding_without_deadline", "legacy_invite_code",
+    "captcha_secret_missing", "captcha_always_blocks_desktop", "captcha_without_proxy_headers",
+    "storage_s3_unreachable", "storage_fallback_active", "storage_backup_not_uploaded",
 )
 
 
@@ -61,6 +66,11 @@ class Facts:
     library_ytdlp_ok: bool = True  # the yt_dlp module can be found (link import)
     library_cookies: str = "unset"  # LIBRARY_YTDLP_COOKIES_FILE: unset | ok | missing | too_open
     library_dns: str = "unchecked"  # www.youtube.com through the local resolver: unchecked | ok | private | unresolved
+    storage_backend: str = "local"  # STORAGE_BACKEND (plan L1 Task 17); the value is a name, never an endpoint
+    storage_probe: str = "ok"  # probe() of the primary: ok | unreachable | denied | no_bucket | not_writable
+    storage_fallback: str = ""  # STORAGE_FALLBACK ("" when off)
+    storage_fallback_hits: int = 0  # reads served by the fallback since start (this process)
+    backup_unsynced: bool = False  # the newest backup exists locally only (S3 primary)
 
 
 def _realtime_reasons(s) -> tuple[str, ...]:
@@ -105,6 +115,62 @@ def _library_findings(s, f: Facts) -> list[Finding]:
     return out
 
 
+def _storage_findings(f: Facts) -> list[Finding]:
+    """Object storage (plan L1 Task 17). Messages name variables only, never their values."""
+    out = []
+    if f.storage_backend == "s3" and f.storage_probe != "ok":
+        out.append(Finding("error", "storage_s3_unreachable", ("storage_backend", "s3_endpoint", "s3_bucket",
+                                                               "s3_access_key"),
+                           f"对象存储无法访问({f.storage_probe}):检查 S3_ENDPOINT、S3_BUCKET、S3_ACCESS_KEY;"
+                           "在它恢复之前,媒体与录音都读不出来"))
+    if f.storage_fallback:
+        out.append(Finding("warn", "storage_fallback_active", ("storage_fallback",),
+                           f"读回退已启用(本进程回退命中 {f.storage_fallback_hits} 次);"
+                           "确认为 0 后再清空 STORAGE_FALLBACK"))
+    if f.backup_unsynced:
+        out.append(Finding("warn", "storage_backup_not_uploaded", ("storage_backend",),
+                           "最近一份备份只在本机,没有上传到对象存储"))
+    return out
+
+
+def _email_findings(s) -> list[Finding]:
+    """账号邮箱(计划 A1):消息只写键名,不写主机、账号或密码。"""
+    out: list[Finding] = []
+    needed = s.email_backend != "off" or s.email_binding_required or s.email_registration_required
+    if needed and not email_ready(s):
+        keys = (("email_backend",) if s.email_backend != "off" else ()) + (
+            ("email_binding_required",) if s.email_binding_required else ()) + (
+            ("email_registration_required",) if s.email_registration_required else ())
+        out.append(Finding("error", "email_not_configured", keys,
+                           "邮箱功能需要发信方式、IDENTITY_PEPPER 与加密主密钥同时就绪:现在缺其中之一,验证码发不出去;"
+                           "EMAIL_REGISTRATION_REQUIRED=true 时所有注册都会返回 503"))
+    if s.email_backend == "console":
+        out.append(Finding("warn", "email_console_backend", ("email_backend",),
+                           "发信方式是 console:只记录「已发送」,用户收不到验证码,仅供开发使用"))
+    if s.email_binding_required and not s.email_binding_deadline.strip():
+        out.append(Finding("warn", "binding_without_deadline", ("email_binding_deadline",),
+                           "已开启强制绑定邮箱,但没有设置截止时间:现在就会要求所有未绑定的用户绑定"))
+    return out
+
+
+def _captcha_findings(s) -> list[Finding]:
+    """人机验证(spec §9, 计划 A1):只写键名;开着但缺密钥时运行时对受保护接口返回 503(失败即关闭)。"""
+    out: list[Finding] = []
+    mode = getattr(s, "captcha_mode", "off")
+    if mode == "off":
+        return out
+    if not getattr(s, "captcha_secret", ""):
+        out.append(Finding("error", "captcha_secret_missing", ("captcha_mode", "captcha_secret"),
+                           "已开启人机验证,但没有设置 CAPTCHA_SECRET:注册、发验证码与找回密码全部返回 503"))
+    if mode == "always":
+        out.append(Finding("warn", "captcha_always_blocks_desktop", ("captcha_mode",),
+                           "CAPTCHA_MODE=always:桌面端无法登录;生产环境请用 adaptive"))
+    if not getattr(s, "trust_proxy_headers", False):
+        out.append(Finding("warn", "captcha_without_proxy_headers", ("trust_proxy_headers",),
+                           "已开启人机验证但未信任代理头:经反向代理时所有用户共用一个 IP,登录失败计数会波及所有人"))
+    return out
+
+
 def diagnose(s, f: Facts) -> list[Finding]:
     out: list[Finding] = []
     if s.realtime_enabled and not s.realtime_available:
@@ -123,6 +189,9 @@ def diagnose(s, f: Facts) -> list[Finding]:
     if s.registration_mode == "invite" and not s.invite_code and not f.live_invites:
         out.append(Finding("warn", "invite_without_codes", ("registration_mode", "invite_code"),
                            "邀请注册已开启,但既没有 INVITE_CODE 也没有可用的邀请码:现在没人能注册"))
+    if s.invite_code:  # the env code is unlimited and has no owner (invites v2 R-I1 / §6.1): flagged, not removed
+        out.append(Finding("info", "legacy_invite_code", ("invite_code",),
+                           "INVITE_CODE 是不限次数的旧式单码:无归属、不可单独撤销,不推荐;改用管理员批量码或用户码"))
     if not f.encryption:
         out.append(Finding("warn", "no_encryption_key", ("settings_encryption_key",),
                            "未设置加密主密钥,后台不能修改密钥,也不能绑定 TOTP"))
@@ -167,7 +236,10 @@ def diagnose(s, f: Facts) -> list[Finding]:
                            "AGENTS_TOOLS_MODE=native,但函数调用探测未通过或未运行:按 prefetch 运行(在「智能体」页运行探测)"))
     if getattr(s, "library_enabled", False):
         out.extend(_library_findings(s, f))
-    rank = {"error": 0, "warn": 1, "info": 2}
+    out.extend(_email_findings(s))
+    out.extend(_captcha_findings(s))
+    out.extend(_storage_findings(f))
+    rank ={"error": 0, "warn": 1, "info": 2}
     return sorted(out, key=lambda x: rank[x.level])
 
 
@@ -276,6 +348,20 @@ async def gather_facts(session, app) -> Facts:
     check_dns = (getattr(live, "library_enabled", False) and getattr(live, "library_link_import_enabled", False)
                  and not (getattr(live, "library_ytdlp_proxy", "") or "").strip())
     library_dns = await dns_state() if check_dns else "unchecked"
+    from app.admin import backups  # local import: backups lives in the same layer and imports housekeeping
+    blobs = get_store(app)
+    primary = getattr(blobs, "primary", blobs)
+    try:  # one HEAD on the bucket, bounded; never one per object (plan L1 Task 17)
+        storage_probe = await asyncio.wait_for(primary.probe(), 3.0)
+    except Exception:  # noqa: BLE001 - a timeout or any connection failure is "unreachable"
+        storage_probe = "unreachable"
+    unsynced = False
+    if getattr(primary, "name", "") == "s3":
+        try:
+            listed = await backups.list_all(app.state.settings, blobs)
+            unsynced = bool(listed) and listed[0]["where"] == "local"
+        except Exception:  # noqa: BLE001 - the doctor page still renders; the probe already reports the outage
+            unsynced = False
     return Facts(
         encryption=box_for(base) is not None, superadmins_without_totp=int(without_totp), invalid=dict(hub.invalid),
         drift=tuple(sorted(drift)), pending_restart=tuple(sorted(hub.pending_restart)), login_alarm=alarm is not None,
@@ -287,4 +373,7 @@ async def gather_facts(session, app) -> Facts:
         library_ffmpeg_ok=_library_ffmpeg_ok(), library_ytdlp_ok=_library_ytdlp_ok(),
         library_cookies=_cookies_state(getattr(app.state.settings, "library_ytdlp_cookies_file", "")),
         library_dns=library_dns,
+        storage_backend=getattr(primary, "name", "local"), storage_probe=storage_probe,
+        storage_fallback=getattr(app.state.settings, "storage_fallback", ""),
+        storage_fallback_hits=int(getattr(blobs, "hits", 0)), backup_unsynced=unsynced,
     )

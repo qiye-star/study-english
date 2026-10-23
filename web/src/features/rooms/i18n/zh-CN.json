@@ -119,6 +119,18 @@
         "closed_protocol": "连接出错,请返回大厅重新进入",
         "kickedClose": "你已被移出房间",
         "closed_admin": "房间已被管理员关闭"
+      },
+      "avatarReport": {
+        "action": "举报头像",
+        "title": "举报 {{name}} 的头像",
+        "reasonLabel": "举报原因",
+        "reasons": {
+          "inappropriate": "不当图片",
+          "impersonation": "冒充他人",
+          "other": "其他"
+        },
+        "submit": "提交举报",
+        "sent": "已收到,管理员会处理。"
       }
     }
   }

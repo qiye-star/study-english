@@ -6,6 +6,7 @@ from typing import Literal
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.avatars import avatar_url
 from app.models import (
     Assessment, Conversation, Message, PracticeItem, User, VocabularyItem, iso_utc,
 )
@@ -81,6 +82,7 @@ def _user_row(row) -> dict:
     return {
         "id": user.id,
         "username": user.username,
+        "nickname": user.nickname,
         "created_at": iso_utc(user.created_at),
         "conversations": int(conversations or 0),
         "assessments": int(assessments or 0),
@@ -97,6 +99,7 @@ def _escape_like(text: str) -> str:
 async def list_users(
     session: AsyncSession, q: str, page: int, per_page: int, *,
     status: Literal["all", "active", "disabled"] = "all", sort: Literal["recent", "created", "storage"] = "recent",
+    email: Literal["all", "bound", "unbound"] = "all",
 ) -> dict:
     columns = _user_stats_columns()
     _, _, recording_bytes, last_conv, last_assess = columns
@@ -105,7 +108,8 @@ async def list_users(
     conds = []
     q = q.strip()
     if q:
-        cond = User.username.ilike(f"%{_escape_like(q)}%", escape="\\")
+        like = f"%{_escape_like(q)}%"
+        cond = or_(User.username.ilike(like, escape="\\"), User.nickname.ilike(like, escape="\\"))
         if q.isdigit() and len(q) <= 9:
             cond = or_(cond, User.id == int(q))
         conds.append(cond)
@@ -113,6 +117,10 @@ async def list_users(
         conds.append(User.disabled_at.is_(None))
     elif status == "disabled":
         conds.append(User.disabled_at.is_not(None))
+    if email == "bound":
+        conds.append(User.email_verified_at.is_not(None))
+    elif email == "unbound":
+        conds.append(User.email_verified_at.is_(None))
     if conds:
         stmt, count_stmt = stmt.where(*conds), count_stmt.where(*conds)
     if sort == "storage":
@@ -147,6 +155,8 @@ async def get_user(session: AsyncSession, user_id: int) -> dict | None:
     return {
         "id": base["id"],
         "username": base["username"],
+        "nickname": base["nickname"],
+        "avatar_url": avatar_url(row[0].avatar_id),
         "created_at": base["created_at"],
         "grammar_prompt": row[0].grammar_prompt,
         "counts": {

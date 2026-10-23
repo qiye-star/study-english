@@ -17,6 +17,9 @@ from app.services import usage
 MB = 1_048_576
 CHUNK_BYTES = 8 * MB  # one upload chunk (spec §8)
 CHUNK_SLACK = 64 * 1024  # multipart framing around one chunk
+# Largest transcript.json read back for re-splitting (plan L1 Task 10). A ceiling, not a measurement: the 600-minute
+# upper bound of LIBRARY_MAX_DURATION_MINUTES at a few words a second, ~100 bytes per word, with margin.
+TRANSCRIPT_MAX_BYTES = 16 * MB
 MAX_PARALLEL_UPLOADS = 2
 UPLOAD_EXTENSIONS = ("mp4", "m4v", "mov", "webm", "mkv", "mp3", "m4a", "aac", "wav", "ogg", "opus", "flac")
 AUDIO_EXTENSIONS = frozenset({"mp3", "m4a", "aac", "wav", "ogg", "opus", "flac"})  # the kind shown until the probe
@@ -52,6 +55,7 @@ SCOPE_TRANSLATE = "library_translate"  # D8: sentences translated today (subject
 SCOPE_ANALYSIS = "library_analysis"  # D8: sentence analyses today (subject = user id)
 SCOPE_AI_GLOBAL = "library_ai"  # D8: both kinds together, in sentences (subject = "*")
 SCOPE_CATALOG_AI = "library_cat_ai"  # curated catalog: system-paid shared analyses (subject "*")
+SCOPE_DUBBING_SUGGEST = "dubbing_suggest"  # plan L5 R7: role suggestions, sentences per user per day (subject = user id)
 GLOBAL = "*"
 
 

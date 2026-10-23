@@ -146,7 +146,7 @@ async def test_quota_counts_existing_recordings(app, client, auth_headers, fake)
 
 
 async def test_storage_failure_returns_500_and_no_row(app, client, auth_headers, fake, monkeypatch):
-    def boom(*args, **kwargs):
+    async def boom(*args, **kwargs):
         raise OSError("disk full")
 
     monkeypatch.setattr(recordings, "write_recording", boom)
@@ -156,47 +156,32 @@ async def test_storage_failure_returns_500_and_no_row(app, client, auth_headers,
     assert await count_rows(app) == 0
 
 
-def test_absolute_path_rejects_escape(tmp_path):
-    with pytest.raises(ValueError):
-        recordings.absolute_path(tmp_path, "../evil.wav")
-    with pytest.raises(ValueError):
-        recordings.absolute_path(tmp_path, "recordings/../../evil.wav")
-    assert recordings.absolute_path(tmp_path, "recordings/1/a.wav") == (tmp_path / "recordings/1/a.wav").resolve()
+async def test_escaping_keys_are_refused_by_the_store(tmp_path):
+    """The escape check now lives in the storage key rules (tests/test_storage_keys.py) and LocalStore.path_of."""
+    from app.storage.local import LocalStore
+
+    store = LocalStore(tmp_path)
+    for bad in ("../evil.wav", "recordings/../../evil.wav"):
+        with pytest.raises(ValueError):
+            await recordings.write_recording(store, bad, b"x")
 
 
-def test_write_and_delete_recording(tmp_path):
+async def test_write_and_delete_recording(tmp_path):
+    from app.storage.local import LocalStore
+
+    store = LocalStore(tmp_path)
     rel = recordings.recording_relpath(12345678, "abc")
     assert rel == "recordings/12345678/abc.wav"
-    recordings.write_recording(tmp_path, rel, b"RIFF")
+    await recordings.write_recording(store, rel, b"RIFF")
     assert (tmp_path / rel).read_bytes() == b"RIFF"
     assert not list((tmp_path / "recordings/12345678").glob("*.tmp"))
-    recordings.delete_recording(tmp_path, rel)
+    await recordings.delete_recording(store, rel)
     assert not (tmp_path / rel).exists()
-    recordings.delete_recording(tmp_path, rel)          # 再删不报错
-    recordings.delete_recording(tmp_path, "../x.wav")   # 越界静默
+    await recordings.delete_recording(store, rel)          # 再删不报错
+    await recordings.delete_recording(store, "../x.wav")   # 越界静默
 
 
-def test_failed_replace_leaves_no_tmp_file(tmp_path, monkeypatch):
-    def boom(src, dst):
-        raise OSError("replace failed")
-
-    monkeypatch.setattr(recordings.os, "replace", boom)
-    with pytest.raises(OSError):
-        recordings.write_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
-    assert files_under(tmp_path) == []
-
-
-def test_failed_write_leaves_no_tmp_file(tmp_path, monkeypatch):
-    def boom(self, data):
-        self.touch()
-        raise OSError("disk full")
-
-    monkeypatch.setattr(Path, "write_bytes", boom)
-    with pytest.raises(OSError):
-        recordings.write_recording(tmp_path, "recordings/1/a.wav", b"RIFF")
-    assert files_under(tmp_path) == []
-
-
+# The temp-file guarantees (failed replace / failed write leave no file) now live in tests/test_storage_local.py.
 async def test_commit_failure_deletes_file_and_leaves_no_row(app, client, auth_headers, fake, monkeypatch):
     async def boom(self):
         raise RuntimeError("db down")

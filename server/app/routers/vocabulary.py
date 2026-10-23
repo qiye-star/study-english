@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.core.quotas import effective
 from app.core.deps import current_user, get_session, get_settings
 from app.models import User, VocabularyItem, iso_utc, utcnow
+from app.services.scheduling import policy_for
 from app.services.vocabulary import MAX_EXAMPLE, MAX_MEANING, MAX_WORD, apply_review, validate_word
 
 router = APIRouter(prefix="/api")
@@ -171,13 +172,15 @@ async def review_vocabulary_item(
     item_id: ItemId,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
     row = await owned_item(session, user, item_id)
     now = utcnow()
     if _as_utc(row.due_at) > now:
         raise HTTPException(409, NOT_DUE)
     item_pk, user_pk = row.id, user.id  # 读出来:rollback 会让 ORM 对象过期,之后不能再懒加载
-    applied = await apply_review(session, user_pk, item_pk, seen_box=row.box, seen_reps=row.reps, grade=payload.grade, now=now)
+    applied = await apply_review(session, user_pk, item_pk, seen_box=row.box, seen_reps=row.reps, grade=payload.grade,
+                                 now=now, policy=policy_for(settings, user_pk))
     if not applied:
         await session.rollback()
         still = await session.scalar(select(VocabularyItem.id).where(VocabularyItem.id == item_pk, VocabularyItem.user_id == user_pk))

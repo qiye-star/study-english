@@ -4,20 +4,23 @@
 并以 4010 断开该用户的房间连接(`app.state.rooms` 存在时;admin 包不导入 routers)。
 """
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin import invites, users_admin
-from app.admin.perms import AdminContext, deny, require, require_step_up, step_up_until
-from app.core.deps import get_session
+from app.admin import invites, user_email_admin, users_admin
+from app.admin.perms import AdminContext, deny, require, require_operator_step_up, require_step_up, step_up_until
+from app.core.config import Settings
+from app.core.deps import get_session, get_settings
 from app.core.quotas import QUOTA_KEYS, quota_cache
+from app.storage import get_store
+from app.core.secretbox import box_for
 from app.models import utcnow
-from app.realtime.realtime_protocol import CLOSE_UNAUTHORIZED
-from app.rooms.protocol import CLOSE_KICKED, CLOSE_NOT_FOUND, event
+from app.rooms.protocol import CLOSE_NOT_FOUND, event
+from app.routers.live_connections import cut_connections
 
 router = APIRouter(prefix="/api/admin")
 
@@ -42,19 +45,6 @@ class DeleteIn(ReasonIn):
 
 def _fail(e: users_admin.UserAdminError):
     raise HTTPException(e.status, e.error) from None
-
-
-async def cut_connections(app, user_id: int) -> None:
-    """Revoke unredeemed tickets, end a live realtime call (4001) and close the user's live room sockets with 4010."""
-    app.state.realtime_tickets.revoke_user(user_id)
-    await app.state.realtime_registry.end_user(user_id, CLOSE_UNAUTHORIZED)
-    rt = getattr(app.state, "rooms", None)
-    if rt is None:
-        return
-    rt.tickets.revoke_user(user_id)
-    for room_id in rt.hub.active_rooms():
-        if user_id in rt.hub.online(room_id):
-            await rt.hub.close_user(room_id, user_id, CLOSE_KICKED)
 
 
 async def _close_rooms(app, room_ids: list[str]) -> None:
@@ -112,12 +102,21 @@ async def reset_password(user_id: UserId, request: Request, ctx: AdminContext = 
     return JSONResponse({"password": password}, headers={"Cache-Control": "no-store"})
 
 
+@router.post("/users/{user_id}/email/clear")
+async def clear_user_email(user_id: UserId, payload: ReasonIn, ctx: AdminContext = Depends(require_operator_step_up),
+                           session: AsyncSession = Depends(get_session)):
+    try:
+        return await user_email_admin.clear_email(session, ctx.actor, user_id, reason=payload.reason, now=utcnow())
+    except user_email_admin.UserEmailError as e:
+        raise HTTPException(e.status, e.error) from None
+
+
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: UserId, payload: DeleteIn, request: Request,
                       ctx: AdminContext = Depends(require_step_up), session: AsyncSession = Depends(get_session)):
     settings = request.app.state.settings
     try:
-        result = await users_admin.delete_user(session, ctx.actor, settings, user_id,
+        result = await users_admin.delete_user(session, ctx.actor, settings, user_id, store=get_store(request.app),
                                                confirm_username=payload.confirm_username, reason=payload.reason,
                                                now=utcnow())
     except users_admin.UserAdminError as e:
@@ -193,8 +192,16 @@ class InviteIn(BaseModel):
 
 
 @router.get("/invites")
-async def list_invites(_: AdminContext = Depends(require("operator")), session: AsyncSession = Depends(get_session)):
-    return {"invites": await invites.listing(session)}
+async def list_invites(
+    kind: Literal["admin", "user"] | None = None,
+    owner: str | None = Query(None, max_length=64),  # a login name or a user id
+    state: Literal["active", "used_up", "expired", "revoked"] | None = None,
+    _: AdminContext = Depends(require("operator")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    return {"invites": await invites.listing(session, settings, kind=kind, owner=owner, state_filter=state,
+                                             now=utcnow())}
 
 
 @router.post("/invites", status_code=201)
@@ -218,6 +225,76 @@ async def revoke_invite(invite_id: Annotated[int, Path(ge=1, le=2**31 - 1)],
                         session: AsyncSession = Depends(get_session)):
     try:
         await invites.revoke(session, ctx.actor, invite_id)
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+    return Response(status_code=204)
+
+
+class BatchIn(BaseModel):
+    count: int = Field(ge=1, le=invites.BATCH_MAX)
+    label: str = Field("", max_length=64)
+    expires_at: datetime | None = None
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
+
+
+@router.post("/invites/batch", status_code=201)
+async def create_invite_batch(payload: BatchIn, ctx: AdminContext = Depends(require("operator")),
+                              session: AsyncSession = Depends(get_session)):
+    """One-off codes, shown once here (no-store). The CSV is built in the admin browser (INDEX X21)."""
+    try:
+        rows, codes = await invites.create_batch(session, ctx.actor, count=payload.count, label=payload.label,
+                                                 expires_at=_aware(payload.expires_at), now=utcnow())
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+    now = utcnow()
+    return JSONResponse({"invites": [invites.invite_out(row, now) for row in rows], "codes": codes},
+                        status_code=201, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/invites/{invite_id}/redemptions")
+async def invite_redemptions(invite_id: Annotated[int, Path(ge=1, le=2**31 - 1)],
+                             _: AdminContext = Depends(require("operator")),
+                             session: AsyncSession = Depends(get_session)):
+    try:
+        return {"redemptions": await invites.redemptions(session, invite_id)}
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+
+
+@router.get("/users/{user_id}/invite")
+async def user_invite_status(user_id: UserId, _: AdminContext = Depends(require("operator")),
+                             session: AsyncSession = Depends(get_session),
+                             settings: Settings = Depends(get_settings)):
+    """The user's code usage and counts. The code itself is never part of an operator view."""
+    try:
+        return await invites.user_status(session, settings, user_id, now=utcnow())
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+
+
+@router.post("/users/{user_id}/invite/revoke", status_code=204)
+async def revoke_user_invite(user_id: UserId, payload: ReasonIn,
+                             ctx: AdminContext = Depends(require_operator_step_up),
+                             session: AsyncSession = Depends(get_session)):
+    try:
+        await invites.revoke_user_code(session, ctx.actor, user_id, reason=payload.reason, now=utcnow())
+    except invites.InviteError as e:
+        raise HTTPException(e.status, e.error) from None
+    return Response(status_code=204)
+
+
+@router.post("/users/{user_id}/invite/rotate", status_code=204)
+async def rotate_user_invite(user_id: UserId, payload: ReasonIn, request: Request,
+                             ctx: AdminContext = Depends(require_operator_step_up),
+                             session: AsyncSession = Depends(get_session),
+                             settings: Settings = Depends(get_settings)):
+    """The owner's old code stops working; the new one (with the cumulative uses) is shown only to the owner."""
+    try:
+        await invites.rotate_user_code(session, ctx.actor, settings, box_for(settings), user_id,
+                                       reason=payload.reason, now=utcnow())
     except invites.InviteError as e:
         raise HTTPException(e.status, e.error) from None
     return Response(status_code=204)

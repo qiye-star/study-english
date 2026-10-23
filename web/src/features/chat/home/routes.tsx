@@ -13,8 +13,13 @@ function Gate({ kind, off }: { kind: "today" | "new" | "conversation"; off: Reac
   return <Suspense fallback={skeleton}>{status === "on" ? <Shell kind={kind} /> : skeleton}</Suspense>;
 }
 
-/** `/chat`:开 = 今天的对话;关(或配置失败 / 超时)= 旧会话列表。 */
-export const ChatIndexRoute = () => <Gate kind="today" off={<ConversationsPage />} />;
+/**
+ * `/chat`:开 = 今天的对话;关(或配置失败 / 超时)= 旧会话列表。
+ * `renderOff` 让 app.tsx 把旧列表包进「对话 / 联机」分区外壳(plan L6,chat 不能引入 rooms);缺省 = 裸列表。
+ */
+export const ChatIndexRoute = ({ renderOff }: { renderOff?: () => ReactNode }) => (
+  <Gate kind="today" off={renderOff ? renderOff() : <ConversationsPage />} />
+);
 /** `/chat/new`:开 = 新对话草稿;关 = 回列表。 */
 export const ChatNewRoute = () => <Gate kind="new" off={<Navigate to="/chat" replace />} />;
 /** `/chat/:id`:开 = 同一外框里的该对话(从不弹问候);关 = 旧对话页原样。 */

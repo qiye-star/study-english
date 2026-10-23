@@ -67,7 +67,8 @@ const fixtureHas = (...p: string[]) => {
   return cur !== undefined;
 };
 const serverHasDefs = fixtureHas("config", "def_lang");
-const QUESTION: Record<keyof Question, true> = { key: true, qtype: true, prompt: true, options: true, length: true };
+// `clip` is optional (L4 R16: only a review cloze question built from the learner's own library clip carries it)
+const QUESTION: Record<Exclude<keyof Question, "clip">, true> = { key: true, qtype: true, prompt: true, options: true, length: true };
 // optionInfo / phrases / example 是可选键(spec 2026-10-13-review-after-answer §2.2:缺省 = 没有这项信息):键表不含它们,由 answerKeys 过滤、专门的用例核对
 const ANSWER_OPTIONAL = ["optionInfo", "phrases", "example"] as const;
 const answerKeys = (a: object) => keysOf(a).filter((k) => !(ANSWER_OPTIONAL as readonly string[]).includes(k));
@@ -252,5 +253,14 @@ describe("wordbook contract (server fixture)", () => {
     const patch = c.def_lang_patch as Record<string, unknown>;
     expect(isDefLang(patch.def_lang)).toBe(true);
     expect(patch.def_lang).toBe("zh");
+  });
+
+  it("the review cloze question with the learner's own clip has the three clip keys (plan L4 R16)", () => {
+    const question = cc<{ key: string; qtype: string; clip?: Record<string, unknown> }>(contract?.review_cloze_clip);
+    expect(question.qtype).toBe("cloze");
+    expect(keysOf(question.clip ?? {})).toEqual(["endMs", "itemId", "startMs"]);
+    expect(typeof question.clip?.itemId).toBe("string");
+    expect(typeof question.clip?.startMs).toBe("number");
+    expect(typeof question.clip?.endMs).toBe("number");
   });
 });

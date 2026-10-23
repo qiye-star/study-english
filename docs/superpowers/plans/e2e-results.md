@@ -461,3 +461,35 @@ docker compose -p enjoy-e2e -f docker-compose.yml -f docker-compose.e2e.yml down
 - Postgres 上的记忆接口(本环境无 Docker);多进程部署下记忆快照最长 5 分钟的不一致(计划 R-M5)。
 - 360 px 不溢出只由结构性测试守着(`layout-360.test.tsx`),没有在真实布局引擎里量过;计划要求的 375×812 浅色 / 深色截图没有做。
 - 主包增量:记忆页在主包里只加一个路由与一个 `React.lazy` 包装;`features/agents/lazy-parts.tsx` 的 `part()` 调用加了 `/* @__PURE__ */`,否则 `app.tsx` 经 `~/features/agents` 导入会把九个懒包装一并拉进主包(约 +0.9 kB)。
+
+## 账号 v2 端到端(2026-10-20,独立测试栈,零上游)
+
+- **环境**:独立栈 `docker compose -p enjoy-e2e`(端口 8100、独立数据卷),`EMAIL_BACKEND=console`、一次性的 `IDENTITY_PEPPER` 与加密密钥、所有付费上游密钥置空、限流调到各自合法上限、`INVITES_USER_MIN_ACCOUNT_DAYS=0`。覆盖文件与测试参数放在会话 scratchpad(不进仓库)。验证码由 `web/e2e/support/accounts.ts::codeFor` 从测试库还原(库里只存 HMAC,用测试栈的一次性 pepper 枚举 6 位数字;**只能用于一次性测试栈**)。
+- **规格与结果**(`--project=chromium-mobile`,实现者运行 + 协调者独立重跑,两次一致):`accounts.spec.ts` + `login.spec.ts` **12 通过**(独立重跑 1.8 分钟);`accounts-admin.spec.ts` **6 通过**(独立重跑 1.0 分钟);`src/test/e2e-upstream-guard.test.ts` 103 通过;`yarn typecheck` 通过。**没有发现应用缺陷**(各次失败都在测试代码里)。
+- **覆盖**:邮箱注册(含错码)、用户名与邮箱登录、找回密码(旧令牌 401)、注册码接口对已知 / 未知地址的响应逐字相同、昵称规则与保存、改密(其他设备 401)、头像上传 / 超限 / 非图片 / 移除、邀请码(生成、`#invite=` 分享链接、被邀请人注册、更换后旧码失效且次数继承);管理端:批量一次性码(只显示一次、CSV 带 BOM、不可重复使用、撤销后失效)、用户邀请卡片(永不显示码、撤销与更换)、邮箱脱敏与清除、**强制绑定**(enforced 时 403 `email_binding_required`、四个放行端点仍可用、已绑定用户不受影响;网页重定向到 `/account/email?required=1` 并绑定后放行;pending 只显示横幅不拦)、头像举报与管理员移除、各页面文本里没有明文码 / 邮箱 / 管理员密码 / pepper / 邀请码。
+- **守卫**:新增放行 `/api/email/code`、`/api/password/reset`、`/api/avatars/{id}`、`/api/avatar-reports`,以及每次进入「我的」页与导航都会请求的只读 `/api/library/config`、`/api/changelog`、`/api/changelog/seen`(已核对服务端代码:只读数据库,不调用上游)。
+- **约定**:`registerViaApi` 在测试栈上改走邮箱注册,所以每个需要登录的规格会各消耗一个验证码额度(测试栈额度已调到上限);`accounts.spec.ts` 的找回密码用例要等 61 秒(同一地址同一用途的发码冷却),总耗时约 1 分钟。
+- **未验证**:真实 QQ SMTP 的送达;WebKit(iOS)项目;绑定 / 换绑页面的独立用例(强制绑定流程在管理端规格里覆盖了绑定);分享按钮(原生分享面板);头像上传被管理员关闭、邀请码「账号太新」与每日动作预算分支;管理端用户列表在大数据量下的分页;Postgres;多 worker;其他既有规格(会调用付费上游,按规则没有跑)。
+
+## 验证码端到端(2026-10-20,一次性栈,零上游)
+
+- **环境**:隔离栈 `enjoy-e2e`(端口 8100),`CAPTCHA_COST=1`、`CAPTCHA_COUNTER_MAX=10`、挑战限流 1000/分钟;解题在容器里用官方 `altcha==2.3.0` 完成(`web/e2e/support/captcha.ts`)。模式由管理端热改(step-up + 理由 + 确认词 `CAPTCHA_MODE`),每段结束恢复 `off`,本次结束时为 `off`。**本次运行的耗时数字不是真实难度下的数字,不得据此估计用户等待时间。**
+- **最终结果**(`--project=chromium-mobile`,`web/e2e/captcha.spec.ts`,串行,修复后的组件,**一次完整运行**):**8 通过 / 0 失败 / 0 跳过**。
+  - a. API adaptive(无头、垃圾头、重放、伪造签名、注册无头、`/api/me` 不受影响)— 通过。
+  - b. 真实组件 UI 注册(勾选后保持已验证、发码按钮可用、错码失败后组件重新求解并用新载荷、同源请求、载荷不出现在 URL / 请求体 / 存储 / cookie / 可见文本)— 通过。
+  - c. 登录 API:五次失败后同一用户名 428;未知用户名同样 428 — 通过。
+  - c-ui. 登录页:第一次提交出现组件,解出后登录成功 — 通过。
+  - d. 找回密码两步都经过组件,重置后登录(本 IP 已被标记,登录先 428,解出后成功)— 通过。
+  - c2. always:登录页立即出现组件,未解出时被拦截并提示,解出后登录成功 — 通过。
+  - f. always 下分块请求失败:登录表单仍可见,显示「Could not load」与重试按钮 — 通过(需屏蔽服务工作线程,见发现 2)。
+  - e. 关闭模式:注册与登录页没有组件,没有 `/api/captcha/challenge` 请求(只有 `GET /api/captcha/config`,见发现 3)— 通过。
+- **回归(关闭模式)**:`accounts.spec.ts` + `login.spec.ts` + `accounts-admin.spec.ts` **18 通过 / 0 失败**(上一次运行,之后未改动共享辅助;`support/captcha.ts` 只被本规格使用)。
+- `yarn typecheck` 通过(本次运行后);`src/test/e2e-upstream-guard.test.ts` 通过(守卫未改动)。
+- **发现 1(应用缺陷,已修复)**:组件在 `verified` 之后被立即重置(`statechange`:`verifying` → `verified` → `unverified` → `unverified`),发码与登录按钮保持禁用。原因:`captcha-widget.tsx` 的 effect 依赖 `[onPayload]`,而 `setPayload` 每次渲染都是新函数,清理函数调用 `el.reset()`。证据:同一用例复现两次;`verified` 事件里的载荷键名为 `challenge{parameters,signature}`、`solution{counter,derivedKey,time}`,带该载荷请求 `POST /api/email/code` 返回 **200**(协议兼容,问题在页面)。**修复:提交 `6430d4eb`(已合入 `main`,同一份代码已在生产与测试栈上重建)。修复后的重跑结果见上方「最终结果」(8/8 通过)。**
+- **发现 2(测试环境,不是应用缺陷)**:应用的服务工作线程从缓存提供静态资源,`page.route` 拦不住分块请求;f 用例需要 `serviceWorkers: "block"`。
+- **发现 3(设计,已接受)**:off 模式下页面仍请求一次 `GET /api/captcha/config` 以得知模式,但不渲染组件、不请求 `/api/captcha/challenge`。
+- **发现 4(设计,限制测试)**:登录失败计数同时按 IP 与登录名(R-C9);本 IP 一旦被标记,未知用户名的首次尝试也返回同样的 428,因此单一 IP 下无法单独证明「只按名字计数」。失败计数窗口为 15 分钟:同一测试栈上**重跑登录类用例需要等窗口过期或使用新栈**。
+- **发现 5(设计,记录在案)**:组件把载荷放在一个无 name、脱离表单的隐藏输入的 `value` 属性里。文本、存储、cookie、URL 与请求体里都没有;断言检查的是去掉属性值后的 HTML。
+- **服务端日志**:`captcha_verify` 行只含 `scope` 与 `solve_ms`(较早运行的 8 行,均来自 API 用例,`solve_ms=0`)。
+- **已在一次完整运行中覆盖的断言**:只有同源请求;挑战请求无查询串;带头的请求 URL 与请求体不含载荷;页面文本、localStorage、sessionStorage、cookie 不含载荷;错码失败后下一次请求使用新载荷。
+- **未验证**:WebKit / iOS;真机(iOS Safari、安卓 Chrome);真实难度(`CAPTCHA_COST` 默认值)下的解题耗时,本次只用 cost 1;深色模式;360–375 px 布局;多 worker 下的失败计数;真实 SMTP 送达。

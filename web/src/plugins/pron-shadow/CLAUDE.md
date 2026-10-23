@@ -8,7 +8,7 @@
 - `sources-strip.tsx`:`learningSources` 两个独立贡献 `pron.weak`(琥珀链接片 → `/links/weak-words`)与 `pron.today`(青按钮片,
   打开懒加载的 `today-words-sheet.tsx`,点例句 `pick(example.en)`);没有内容或请求失败 → `null`
 - `weak-words-row.tsx`:`notebookViews/pron.row`(order 20,易错词之后)
-- `weak-words-page.tsx`:路由 `/links/weak-words`(懒加载);「跟读」/「连读这 5 个」= `navigate("/practice", { state: { reference } })`
+- `weak-words-page.tsx`:路由 `/links/weak-words`(懒加载);「跟读」/「连读这 5 个」= `navigate("/practice/shadow", { state: { reference } })`
 - `index.ts`:登记(全部 `link: "pron_shadow"`);`i18n/`:`web.links.pron.*`
 
 ## Allowed dependencies

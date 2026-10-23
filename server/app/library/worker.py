@@ -186,7 +186,7 @@ class LibraryWorker:
             self._drop_staging(item_id)
         for user_id, item_id in stale:
             if item_id not in self.running:
-                paths.remove_item_files(data_dir, user_id, item_id)
+                await paths.remove_item_files(self.deps.storage(), data_dir, user_id, item_id)
         orphans = 0
         root = paths.tmp_root(data_dir)
         if root.is_dir():
@@ -199,7 +199,7 @@ class LibraryWorker:
                     orphans += 1
         try:  # spec 2026-10-14-curated-library R1: retired catalog items nobody uses any more
             async with self.deps.sessionmaker() as s:
-                collected = await catalog_store.collect_retired(s, data_dir)
+                collected = await catalog_store.collect_retired(s, self.deps.storage(), data_dir)
             if collected:
                 logger.info("library sweep catalog collected=%d", collected)
         except Exception as e:  # noqa: BLE001 - the user library's sweep must not fail because of the catalog
@@ -243,9 +243,11 @@ def install(app) -> LibraryWorker:
 
     worker: LibraryWorker | None = None
     deps = PipelineDeps(sessionmaker=state.sessionmaker, settings=settings,
-                        data_dir=Path(state.settings.resolved_data_dir), tools=Ffmpeg(),
+                        data_dir=Path(state.settings.resolved_data_dir), storage=lambda: state.storage,
+                        tools=Ffmpeg(),
                         fetch=lambda: worker.fetch_stage, transcriber=transcriber, clock=utcnow,
-                        timed_transcriber=timed_transcriber)
+                        timed_transcriber=timed_transcriber,
+                        publish=lambda event: state.learning_bus.publish(event))  # plan L4 R4: read the bus per call
     worker = LibraryWorker(deps)
     state.library = worker
     return worker

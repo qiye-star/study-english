@@ -3,7 +3,7 @@
 Read-aloud pronunciation practice: record, assess, history, saved practice items.
 
 ## What lives here
-- Pages: `practice-page.tsx`, `assessment-page.tsx`, `history-page.tsx`, `practice-list-page.tsx`.
+- Pages: `practice-page.tsx` (`/practice` hub: 跟读 entry card, rank + wordbook mini cards, recent scores, history), `shadow-page.tsx` (`/practice/shadow`: the read-aloud UI, back to the hub), `assessment-page.tsx`, `history-page.tsx`, `practice-list-page.tsx`.
 - `assessment-api.ts` (assess, fetch, delete, audio), `practice-items-api.ts`, `save-practice-item.ts` (`savePracticeItem`, `goPractice`). Sources include `library` (shadowing library, plan 2026-10-13-video-import-web-shadow); `PracticeItemSource` / `AssessmentSource` must match the server.
 - `mobile-score-result.tsx` (score view reused by chat).
 - `use-shadow-session.ts` — `useShadowSession`: record → WAV → assess (`save: true`, no `source`) → keep the recording for retry. Shared by `practice-page.tsx` and the shadow sheet (plan 2026-10-14-shadow-sheet); with default options it is the page's old logic verbatim (`keepAudio`, `silenceError`, `starter`, `maxDurationMs` are sheet/test-only).

@@ -3,6 +3,7 @@ export { ConversationPage, ConversationsPage } from "./lazy-pages"; // 路由懒
 // 路由分发:按 CHAT_HOME_ENABLED 选新对话主页或旧页面(app.tsx 的三条 /chat 路由)
 export { ChatConversationRoute, ChatIndexRoute, ChatNewRoute } from "./home/routes";
 export { primeAudioElement, sharedAutoplayAudio, ttsErrorMessage, useTtsPlayer, type TtsState } from "./use-tts-player";
+export { PREVIEW_SENTENCE } from "./voice-picker"; // 朗读音色页的试听句
 export { useMessageTranslations, type TranslationState } from "./use-message-translations";
 // 登出清理(auth/device-data)
 export { sharedTtsCache } from "./tts";

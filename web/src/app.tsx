@@ -6,8 +6,9 @@ import { AuthProvider } from "~/auth/auth-context";
 import { AnnouncementBanner, pickText, refreshAnnouncements, useAnnouncements } from "~/components/announcement-banner";
 import { MaintenanceScreen } from "~/components/maintenance-screen";
 import { RequireAuth } from "~/auth/require-auth";
-import { ChatConversationRoute, ChatIndexRoute, ChatNewRoute } from "~/features/chat";
-import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage } from "~/features/practice";
+import { ChatHubLayout } from "~/pages/chat-hub";
+import { ChatConversationRoute, ChatIndexRoute, ChatNewRoute, ConversationsPage } from "~/features/chat";
+import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage, ShadowPage } from "~/features/practice";
 import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
 import { RoomInvitePage, RoomPage, RoomSummaryPage, RoomsEndedPage, RoomsLobbyPage } from "~/features/rooms";
@@ -17,7 +18,10 @@ import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellPage,
 } from "~/features/wordbook";
 import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
+import { DubHomeRoute, DubItemRoute } from "~/features/dubbing";
 import { ChangelogPage } from "~/features/changelog";
+import { AccountSettingsPage, BindEmailPage, BindingBanner, ForgotPasswordPage, RegisterPage } from "~/features/account";
+import { GrammarPromptPage } from "~/features/grammar";
 import { AppShell } from "~/layout/app-shell";
 import { ColorSchemeSync } from "~/layout/color-scheme-sync";
 import { useIsDark } from "~/layout/color-scheme";
@@ -28,9 +32,13 @@ import { LoginPage } from "~/pages/login-page";
 import { MePage } from "~/pages/me-page";
 import { SettingsProvider } from "~/settings/settings-context";
 import { TOAST_CLASSNAMES } from "~/components/toast-classes";
+import { HOME_PATH } from "~/lib/home-route";
 
 /** 外观与主题(计划 2026-10-15-liquid-glass L3):懒加载,不进主包;液态开关关闭时页面自己跳回 /me。 */
 const AppearancePage = lazy(() => import("~/pages/appearance/appearance-page").then((m) => ({ default: m.AppearancePage })));
+const MeServicesPage = lazy(() => import("~/pages/me-services-page").then((m) => ({ default: m.MeServicesPage })));
+/** 我的 → 朗读音色(/me/voice,按场景选音色):懒加载 */
+const VoiceSettingsRoute = lazy(() => import("~/pages/voice-settings-route").then((m) => ({ default: m.VoiceSettingsRoute })));
 
 /**
  * 公告横幅放在所有页面的顶部;下方区域把 --app-height 改成 100%,应用壳因此让出横幅的高度。
@@ -51,6 +59,7 @@ export function AnnouncementFrame() {
   return (
     <div className="page-bg flex flex-col bg-background" style={{ height: "var(--app-height, 100dvh)" }}>
       <AnnouncementBanner />
+      <BindingBanner />
       <div className="relative min-h-0 flex-1 overflow-y-auto" style={{ "--app-height": "100%" } as CSSProperties}>
         <Outlet />
       </div>
@@ -65,15 +74,19 @@ export function AppRoutes() {
     <Routes>
       <Route element={<AnnouncementFrame />}>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/install" element={<InstallPage />} />
         <Route element={<RequireAuth />}>
           <Route element={<><Slot point="appEffects" props={{}} /><AppShell /></>}>
             <Route path="/practice" element={<PracticePage />} />
+            <Route path="/practice/shadow" element={<ShadowPage />} />
             <Route path="/practice/history" element={<HistoryPage />} />
             <Route path="/practice/list" element={<PracticeListPage />} />
             <Route path="/practice/changelog" element={<ChangelogPage />} />
             <Route path="/practice/assessments/:id" element={<AssessmentPage />} />
-            <Route path="/chat" element={<ChatIndexRoute />} />
+            {/* 开关关 = 旧会话列表,仍包在「对话 / 联机」分区外壳里(plan L6);开 = 对话主页 */}
+            <Route path="/chat" element={<ChatIndexRoute renderOff={() => <ChatHubLayout section="chat">{(e) => <ConversationsPage embedded={e} />}</ChatHubLayout>} />} />
             <Route path="/chat/new" element={<ChatNewRoute />} />
             <Route path="/chat/:id" element={<ChatConversationRoute />} />
             <Route path="/progress" element={<ProgressPage />} />
@@ -81,8 +94,8 @@ export function AppRoutes() {
             <Route path="/rank" element={<RankHomePage />} />
             <Route path="/rank/match/:id" element={<MatchPage />} />
             <Route path="/rank/achievements" element={<AchievementsPage />} />
-            <Route path="/rooms" element={<RoomsLobbyPage />} />
-            <Route path="/rooms/ended" element={<RoomsEndedPage />} />
+            <Route path="/rooms" element={<ChatHubLayout section="rooms">{(e) => <RoomsLobbyPage embedded={e} />}</ChatHubLayout>} />
+            <Route path="/rooms/ended" element={<ChatHubLayout section="rooms-ended">{(e) => <RoomsEndedPage embedded={e} />}</ChatHubLayout>} />
             <Route path="/rooms/r/:roomId" element={<RoomPage />} />
             <Route path="/rooms/r/:roomId/summary" element={<RoomSummaryPage />} />
             <Route path="/rooms/invite/:token" element={<RoomInvitePage />} />
@@ -94,14 +107,21 @@ export function AppRoutes() {
             <Route path="/wordbook/learned" element={<WordbookLearnedPage />} />
             <Route path="/library" element={<LibraryListPage />} />
             <Route path="/library/:id" element={<LibraryPlayerPage />} />
+            <Route path="/dub" element={<Suspense fallback={null}><DubHomeRoute /></Suspense>} />
+            <Route path="/dub/:itemId" element={<Suspense fallback={null}><DubItemRoute /></Suspense>} />
+            <Route path="/account/email" element={<BindEmailPage />} />
             <Route path="/me" element={<MePage />} />
+            <Route path="/me/account" element={<AccountSettingsPage />} />
+            <Route path="/me/grammar" element={<GrammarPromptPage />} />
+            <Route path="/me/services" element={<Suspense fallback={null}><MeServicesPage /></Suspense>} />
             <Route path="/me/agents" element={<AgentSettingsPage />} />
             <Route path="/me/agents/memory" element={<MemoryPage />} />
             <Route path="/me/appearance" element={<Suspense fallback={null}><AppearancePage /></Suspense>} />
+            <Route path="/me/voice" element={<Suspense fallback={null}><VoiceSettingsRoute /></Suspense>} />
             {routes}
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/practice" replace />} />
+        <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
       </Route>
     </Routes>
   );

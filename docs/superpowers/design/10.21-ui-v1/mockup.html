@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10.21 前端改动示例页面</title>
+<style>
+:root{
+  --bg:#f6f7f8;--surface:#fff;--surface-2:#f5f6f8;--ink:#111318;--ink-2:#5b6170;--ink-3:#8a90a0;
+  --blue:#2456db;--blue-tint:#eaf0ff;--teal:#0e7067;--teal-tint:#e3f5f2;--amber:#9a4b00;--amber-tint:#fff0de;
+  --green:#157a3b;--green-tint:#e4f6ea;--red:#d1242f;--red-tint:#ffe8e9;
+  --hair:rgba(17,19,24,.12);--hair2:rgba(17,19,24,.07);--well:rgba(17,19,24,.05);
+  --glass:rgba(255,255,255,.62);--glass-bd:rgba(255,255,255,.7);--page-top:#f6f7f8;--page-bottom:#e8eaed;
+  --on-blue:#fff;--sh:0 12px 32px -18px rgba(17,19,24,.25);
+}
+body.dark{
+  --bg:#0f1013;--surface:#17191e;--surface-2:#1e2127;--ink:#f3f4f6;--ink-2:#a6abb8;--ink-3:#6e7482;
+  --blue:#8fb0ff;--blue-tint:rgba(143,176,255,.14);--teal:#5fd1c4;--teal-tint:rgba(95,209,196,.14);--amber:#f2b056;--amber-tint:rgba(242,176,86,.14);
+  --green:#6fd39a;--green-tint:rgba(111,211,154,.14);--red:#ff7b7b;--red-tint:rgba(255,123,123,.14);
+  --hair:rgba(255,255,255,.14);--hair2:rgba(255,255,255,.08);--well:rgba(255,255,255,.07);
+  --glass:rgba(255,255,255,.07);--glass-bd:rgba(255,255,255,.12);--page-top:#14161a;--page-bottom:#090a0b;
+  --on-blue:#0f1013;--sh:0 12px 32px -18px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;margin:0}
+body{font:14px/1.5 -apple-system,"PingFang SC","Noto Sans SC",system-ui,sans-serif;background:#d9dce1;color:var(--ink);padding:24px 16px 80px}
+body.dark{background:#050506}
+h1{font-size:20px;margin-bottom:4px}
+.top{max-width:1200px;margin:0 auto 24px}
+.top p{color:#555;font-size:13px}body.dark .top p{color:#999}
+.top h1,.top p{color:inherit}
+.tgl{display:inline-flex;gap:8px;align-items:center;margin-top:10px;font-size:13px;cursor:pointer}
+section{max-width:1200px;margin:0 auto 40px}
+section>h2{font-size:16px;margin:0 0 4px}
+section>p.note{font-size:12.5px;color:#555;margin-bottom:14px;max-width:760px}body.dark section>p.note{color:#999}
+.row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+.cap{font-size:12px;color:#555;margin:8px 4px 0;max-width:300px}body.dark .cap{color:#999}
+.phone{width:300px;height:620px;border-radius:30px;background:linear-gradient(180deg,var(--page-top),var(--page-bottom));border:6px solid #1b1d22;position:relative;overflow:hidden;color:var(--ink);box-shadow:0 20px 50px -20px rgba(0,0,0,.45)}
+.scroll{position:absolute;inset:0 0 0 0;overflow:hidden;padding:30px 12px 90px}
+.status{position:absolute;top:6px;left:18px;right:18px;display:flex;justify-content:space-between;font-size:10px;color:var(--ink-2);z-index:3}
+h3.t{font-size:22px;font-weight:700;letter-spacing:-.01em;margin:8px 2px 8px}
+.card{background:var(--glass);border:1px solid var(--glass-bd);border-radius:20px;padding:12px;margin-bottom:10px;box-shadow:var(--sh)}
+body:not(.dark) .card{background:rgba(255,255,255,.72)}
+.well{background:var(--well);box-shadow:inset 0 0 0 .5px var(--hair2);border-radius:14px}
+.seg{display:flex;background:var(--well);border-radius:999px;padding:3px;gap:2px;box-shadow:inset 0 0 0 .5px var(--hair2)}
+.seg b{flex:1;text-align:center;font-weight:500;font-size:13px;padding:7px 4px;border-radius:999px;color:var(--ink-2)}
+.seg b.on{background:var(--surface);color:var(--blue);font-weight:700;box-shadow:0 2px 8px -3px rgba(17,19,24,.25)}
+body.dark .seg b.on{background:rgba(255,255,255,.16)}
+.tabbar{position:absolute;left:12px;right:12px;bottom:12px;height:58px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-bd);backdrop-filter:blur(18px);display:flex;padding:5px;box-shadow:var(--sh);z-index:4}
+body:not(.dark) .tabbar{background:rgba(255,255,255,.7)}
+.tabbar div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10.5px;color:var(--ink-2);border-radius:999px;gap:1px}
+.tabbar div.on{background:rgba(36,86,219,.14);color:var(--blue);font-weight:700}
+body.dark .tabbar div.on{background:rgba(143,176,255,.18)}
+.ic{font-size:17px;line-height:1}
+.li{display:flex;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--hair2)}
+.li:last-child{border:0}
+.av{width:36px;height:36px;border-radius:50%;background:var(--blue-tint);color:var(--blue);display:grid;place-items:center;font-weight:700;flex:none}
+.li .m{flex:1;min-width:0}.li .m b{display:block;font-size:14px}.li .m small{color:var(--ink-3);font-size:12px}
+.pill{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--blue-tint);color:var(--blue);font-weight:600}
+.pill.g{background:var(--green-tint);color:var(--green)}.pill.a{background:var(--amber-tint);color:var(--amber)}.pill.r{background:var(--red-tint);color:var(--red)}
+.btn{display:block;text-align:center;background:var(--blue);color:var(--on-blue);border-radius:999px;padding:10px;font-weight:700;font-size:14px}
+.btn.o{background:transparent;color:var(--blue);box-shadow:inset 0 0 0 1.5px var(--blue)}
+.code{display:flex;gap:6px;margin:8px 0}.code i{flex:1;height:40px;border-radius:12px;background:var(--well);box-shadow:inset 0 0 0 .5px var(--hair2)}
+.sw{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.sw div{text-align:center;font-size:10.5px;color:var(--ink-2)}
+.sw i{display:block;width:100%;aspect-ratio:1;border-radius:50%;margin:0 auto 3px;max-width:44px}
+.sw i.sel{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--blue)}
+.hint{font-size:12px;color:var(--ink-2);background:var(--blue-tint);border-radius:12px;padding:8px 10px;margin:8px 0}
+.sl{margin:8px 0 2px;font-size:12.5px;display:flex;justify-content:space-between}.sl+.tr{height:6px;border-radius:99px;background:var(--well);position:relative;margin-bottom:10px}
+.tr i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--ink-2)}
+.tr i::after{content:"";position:absolute;right:-12px;top:-9px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 3px 10px -2px rgba(17,19,24,.35)}
+.vid{height:150px;border-radius:16px;background:linear-gradient(135deg,#27313f,#3a4a5e 60%,#1d2530);position:relative;overflow:hidden;margin-bottom:10px}
+.vid .sub{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(0,0,0,.55);color:#fff;border-radius:10px;padding:6px 8px;font-size:12px}
+.vid .tag{position:absolute;top:8px;left:8px;font-size:10px;background:rgba(255,255,255,.2);color:#fff;border-radius:99px;padding:2px 8px}
+.line{padding:8px 10px;border-radius:14px;margin-bottom:6px;font-size:13px;display:flex;gap:8px}
+.line .who{width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:700;display:grid;place-items:center;flex:none;margin-top:1px;background:var(--surface-2);color:var(--ink-2)}
+.line.me{background:var(--blue-tint)}.line.me .who{background:var(--blue);color:var(--on-blue)}
+.line.cur{box-shadow:inset 0 0 0 2px var(--blue)}
+.big{font-size:44px;font-weight:800;text-align:center;color:var(--blue);margin:6px 0 0}
+.bar{height:6px;border-radius:99px;background:var(--well);overflow:hidden}.bar i{display:block;height:100%;background:var(--green)}
+.mic{width:64px;height:64px;border-radius:50%;background:var(--red);margin:6px auto;display:grid;place-items:center;color:#fff;font-size:24px;box-shadow:0 0 0 8px rgba(209,36,47,.18)}
+.wave{display:flex;gap:3px;align-items:center;justify-content:center;height:30px}.wave i{width:3px;background:var(--blue);border-radius:2px}
+.cloze{font-size:16px;line-height:1.7;margin:8px 0}.cloze u{display:inline-block;min-width:70px;border-bottom:2px solid var(--blue);text-decoration:none}
+.opt{padding:10px 12px;border-radius:14px;margin-bottom:6px;font-size:14px;background:var(--surface-2);box-shadow:inset 0 0 0 .5px var(--hair2)}
+.legend{max-width:1200px;margin:0 auto;font-size:12px;color:#555}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;background:#e0343a;color:#fff;margin-left:6px;vertical-align:middle}
+.tag-new{background:#157a3b}.tag-chg{background:#9a4b00}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>10.21 前端改动示例页面 · 已确认(2026-10-21)</h1>
+  <p>仅供参考的静态示意,不是最终视觉;真实实现沿用液态玻璃组件与现有令牌。图中带 <span class="badge tag-chg">改</span> 的是现有页面的改动,<span class="badge tag-new">新</span> 是新页面。数据均为虚构。</p>
+  <label class="tgl"><input type="checkbox" id="d"> 切换深色预览</label>
+</div>
+
+<!-- ============ A 对话 / 联机 ============ -->
+<section>
+  <h2>A. 对话页并入联机 <span class="badge tag-chg">改</span> · L6</h2>
+  <p class="note">底部导航从 5 个减到 4 个;「对话」页顶部出现「AI 对话 | 联机」两段切换。联机功能关闭时不显示切换条,页面和现在一样。路由不变,切换用 replace,不增加返回步数。</p>
+  <div class="row">
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <h3 class="t">对话</h3>
+          <div class="seg" style="margin-bottom:10px"><b class="on">AI 对话</b><b>联机</b></div>
+          <div class="card">
+            <div class="li"><div class="av">☕</div><div class="m"><b>Ordering coffee</b><small>今天 · 12 条消息</small></div></div>
+            <div class="li"><div class="av">✈</div><div class="m"><b>At the airport</b><small>昨天 · 8 条消息</small></div></div>
+            <div class="li"><div class="av">💼</div><div class="m"><b>Job interview</b><small>周一 · 21 条消息</small></div></div>
+          </div>
+          <div class="btn" style="width:70%;margin:6px auto">＋ 新对话</div>
+        </div>
+        <div class="tabbar"><div><span class="ic">🎙</span>练习</div><div class="on"><span class="ic">💬</span>对话</div><div><span class="ic">🎬</span>跟读库</div><div><span class="ic">👤</span>我的</div></div>
+      </div>
+      <p class="cap">① 对话 → AI 对话(默认)。导航 4 列,「联机」标签消失。</p>
+    </div>
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <h3 class="t">对话</h3>
+          <div class="seg" style="margin-bottom:10px"><b>AI 对话</b><b class="on">联机</b></div>
+          <div class="card"><b style="font-size:13px">加入房间</b>
+            <div class="code"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="btn">加入</div>
+          </div>
+          <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:13px">我的房间</b><span class="pill">已结束 3 ›</span></div>
+            <div class="li"><div class="av" style="background:var(--teal-tint);color:var(--teal)">R</div><div class="m"><b>Friday speaking club</b><small>4 人 · 进行中</small></div><span class="pill g">进行中</span></div>
+          </div>
+          <div class="btn o" style="width:70%;margin:6px auto">＋ 创建房间</div>
+        </div>
+        <div class="tabbar"><div><span class="ic">🎙</span>练习</div><div class="on"><span class="ic">💬</span>对话</div><div><span class="ic">🎬</span>跟读库</div><div><span class="ic">👤</span>我的</div></div>
+      </div>
+      <p class="cap">② 对话 → 联机。「对话」标签仍高亮;进入房间后整页体验不变,房间内返回回到这里。</p>
+    </div>
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <h3 class="t">对话</h3>
+          <div class="card">
+            <div class="li"><div class="av">☕</div><div class="m"><b>Ordering coffee</b><small>今天 · 12 条消息</small></div></div>
+            <div class="li"><div class="av">✈</div><div class="m"><b>At the airport</b><small>昨天 · 8 条消息</small></div></div>
+          </div>
+          <div class="btn" style="width:70%;margin:6px auto">＋ 新对话</div>
+        </div>
+        <div class="tabbar"><div><span class="ic">🎙</span>练习</div><div class="on"><span class="ic">💬</span>对话</div><div><span class="ic">🎬</span>跟读库</div><div><span class="ic">👤</span>我的</div></div>
+      </div>
+      <p class="cap">③ 联机功能关闭时:无切换条,与现在一致。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ B 外观 ============ -->
+<section>
+  <h2>B. 外观与主题 <span class="badge tag-chg">改</span> · 已在分支 <code>worktree-agent-a80eb80d4e165c9d3</code></h2>
+  <p class="note">「颜色模式」和「背景」合并到同一张卡片;背景只显示当前模式对应的那一套,不再有自己的浅/深小标签。透明度滑块的下限更低。预览请用右上角的深色切换看两套。</p>
+  <div class="row">
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <div style="font-size:15px;font-weight:700;text-align:center;margin:4px 0 8px">‹ 外观与主题</div>
+          <div class="card">
+            <b style="font-size:12.5px;color:var(--ink-2)">颜色模式</b>
+            <div class="seg" style="margin:6px 0 10px"><b>跟随系统</b><b class="on" id="lm">浅色</b><b>深色</b></div>
+            <b style="font-size:12.5px;color:var(--ink-2)">背景</b>
+            <div class="hint" id="bgh">当前是浅色模式,这里只显示浅色背景;切换到深色模式后可选深色背景。</div>
+            <div class="sw" id="swl">
+              <div><i class="sel" style="background:#f6f7f8;box-shadow:inset 0 0 0 1px var(--hair)"></i>雾白</div>
+              <div><i style="background:#eef2fb"></i>晴空</div>
+              <div><i style="background:#f4efe6"></i>暖沙</div>
+              <div><i style="background:#eaf3ee"></i>薄荷</div>
+            </div>
+            <div class="sw" id="swd" style="display:none">
+              <div><i class="sel" style="background:#101114"></i>石墨</div>
+              <div><i style="background:#17120f"></i>暖炭</div>
+              <div><i style="background:#0f1220"></i>冷夜</div>
+              <div><i style="background:#0b130f"></i>墨绿</div>
+            </div>
+          </div>
+          <div class="card">
+            <b style="font-size:12.5px;color:var(--ink-2)">玻璃质感</b>
+            <div class="sl"><span>透明度</span><span>82</span></div><div class="tr"><i style="width:78%"></i></div>
+            <div class="sl"><span>模糊</span><span>24 px</span></div><div class="tr"><i style="width:50%"></i></div>
+          </div>
+        </div>
+      </div>
+      <p class="cap">颜色模式在上、背景在下,放在同一张卡片里,不容易再误以为小标签是总开关。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ C 配音 ============ -->
+<section>
+  <h2>C. 影视角色扮演配音 <span class="badge tag-new">新</span> · L5</h2>
+  <p class="note">入口在练习首页的一张卡片,页面在 /dub(使用液态玻璃,不在 /library 的经典皮肤下)。流程:选片段 → 选角色 → 彩排 → 录制 → 结果。轮到你时原声静音,只在你的台词窗口内录音。</p>
+  <div class="row">
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <div style="font-size:15px;font-weight:700;text-align:center;margin:4px 0 8px">‹ 选角色</div>
+          <div class="vid"><span class="tag">片段 00:42–01:18 · 6 句</span><div class="sub">Where are you going in such a hurry?</div></div>
+          <div class="card">
+            <div class="line"><span class="who">A</span><div>Where are you going in such a hurry?</div></div>
+            <div class="line"><span class="who">B</span><div>I'm late for my flight.</div></div>
+            <div class="line"><span class="who">A</span><div>Then you'd better run.</div></div>
+          </div>
+          <div class="seg" style="margin-bottom:10px"><b class="on">我演 A</b><b>我演 B</b></div>
+          <div class="btn">开始彩排</div>
+        </div>
+      </div>
+      <p class="cap">① 选片段与角色。角色由管理员或用户点选 A/B,也可点「智能建议」。片段上限 ≤12 句 / ≤90 秒(暂定)。</p>
+    </div>
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <div style="font-size:15px;font-weight:700;text-align:center;margin:4px 0 8px">录制中</div>
+          <div class="vid"><span class="tag">原声已静音 · 轮到你</span><div class="sub">Then you'd better run.</div></div>
+          <div class="line me cur"><span class="who">A</span><div>Then you'd <b style="color:var(--blue)">better</b> run.</div></div>
+          <div class="line"><span class="who">B</span><div style="color:var(--ink-3)">I missed it by a minute.</div></div>
+          <div class="wave"><i style="height:8px"></i><i style="height:18px"></i><i style="height:26px"></i><i style="height:14px"></i><i style="height:22px"></i><i style="height:10px"></i><i style="height:20px"></i><i style="height:6px"></i></div>
+          <div class="mic">●</div>
+          <p style="text-align:center;font-size:11.5px;color:var(--ink-2)">戴耳机效果更好 · 每句录完立即后台评分</p>
+        </div>
+      </div>
+      <p class="cap">② 录制。对方台词播放原声,你的台词窗口静音原声并高亮提示;只在你的窗口(句首前 0.3 秒到句尾后 0.6 秒)录音。</p>
+    </div>
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <div style="font-size:15px;font-weight:700;text-align:center;margin:4px 0 4px">配音结果</div>
+          <div class="big">86</div>
+          <p style="text-align:center;color:var(--ink-2);font-size:12px;margin-bottom:8px">发音 88 · 流利 84 · 同步 82</p>
+          <div class="card">
+            <div class="li"><div class="m"><b style="font-size:13px">Where are you going…</b><small>同步 +0.12 s</small></div><span class="pill g">91</span></div>
+            <div class="li"><div class="m"><b style="font-size:13px">Then you'd better run.</b><small>“better” 偏弱</small></div><span class="pill a">78</span></div>
+            <div class="li"><div class="m"><b style="font-size:13px">See you at the gate.</b><small>开口偏晚 0.5 s</small></div><span class="pill a">80</span></div>
+          </div>
+          <div class="btn" style="margin-bottom:6px">对比回放:原声 vs 你的</div>
+          <div class="btn o">再来一遍</div>
+        </div>
+      </div>
+      <p class="cap">③ 结果。总分 = 发音 60% + 流利 20% + 同步 20%(权重暂定);逐句得分与回放对比。成品视频导出放第二期。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ D 沉睡词 / 语境化 ============ -->
+<section>
+  <h2>D. 沉睡词与语境化复习 <span class="badge tag-new">新</span> · L4</h2>
+  <p class="note">「沉睡词」页列出学过但还没主动用过的词;复习完形题优先用你自己影视库里的句子,并能播放那 4 秒原片。</p>
+  <div class="row">
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <div style="font-size:15px;font-weight:700;text-align:center;margin:4px 0 8px">‹ 学了没用的词</div>
+          <div class="seg" style="margin-bottom:10px"><b class="on">沉睡 42</b><b>萌芽 18</b><b>激活 96</b></div>
+          <div class="card">
+            <div class="li"><div class="m"><b>reluctant</b><small>已学 18 天 · 从没用过</small></div><span class="pill r">沉睡</span></div>
+            <div class="li"><div class="m"><b>reckon</b><small>已学 9 天 · 从没用过</small></div><span class="pill r">沉睡</span></div>
+            <div class="li"><div class="m"><b>thrilled</b><small>已学 6 天 · 从没用过</small></div><span class="pill r">沉睡</span></div>
+            <div class="li"><div class="m"><b>figure out</b><small>已学 4 天 · 用过 1 次</small></div><span class="pill a">萌芽</span></div>
+          </div>
+          <div class="btn">带着这几个词去聊聊</div>
+        </div>
+      </div>
+      <p class="cap">① 沉睡词列表。点按钮会让 AI 对话自然引出 2–3 个沉睡词。只存词和次数,不存你说过的话。</p>
+    </div>
+    <div>
+      <div class="phone"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="scroll">
+          <div style="font-size:15px;font-weight:700;text-align:center;margin:4px 0 8px">复习 3 / 20</div>
+          <div class="vid" style="height:110px"><span class="tag">来自你的跟读库 · Notting Hill</span><div class="sub">▶ 播放这句原片(4 秒)</div></div>
+          <div class="cloze">I'm a bit <u>&nbsp;</u> to tell her the truth.</div>
+          <div class="opt">reluctant</div>
+          <div class="opt">relevant</div>
+          <div class="opt">reliable</div>
+          <div class="opt">resistant</div>
+        </div>
+      </div>
+      <p class="cap">② 语境化完形题。例句取自你自己的影视库(6–16 词、低置信度的不选),找不到才回落词典例句。</p>
+    </div>
+  </div>
+</section>
+
+<div class="legend">未验证项:安卓/iOS 真机的实际渲染、窄屏换行、各页面的毛玻璃模糊层数(每屏 ≤ 3)。</div>
+
+<script>
+const d=document.getElementById('d');
+function apply(){
+  document.body.classList.toggle('dark',d.checked);
+  document.getElementById('lm').textContent=d.checked?'深色':'浅色';
+  document.getElementById('swl').style.display=d.checked?'none':'grid';
+  document.getElementById('swd').style.display=d.checked?'grid':'none';
+  document.getElementById('bgh').textContent=d.checked?'当前是深色模式,这里只显示深色背景;切换到浅色模式后可选浅色背景。':'当前是浅色模式,这里只显示浅色背景;切换到深色模式后可选深色背景。';
+}
+d.addEventListener('change',apply);
+</script>
+</body>
+</html>

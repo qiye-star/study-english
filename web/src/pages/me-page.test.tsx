@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ApiClient } from "~/api/client";
 import i18n from "~/i18n";
 import { resetServerAiConfigCache } from "~/api/server-config";
@@ -8,6 +8,8 @@ import { createFetchMock, json } from "~/test/fetch-mock";
 import { setLiquid } from "~/test/glass";
 import { renderWithProviders } from "~/test/render";
 import { PLAYBACK_RATE_KEY, resetPlaybackRateForTests } from "~/lib/playback-rate";
+import { ZH_DEFS_PREF_KEY } from "~/lib/storage";
+import { getZhDefsMode, resetZhDefsModeMemory } from "~/settings/zh-defs-pref";
 import { MePage } from "./me-page";
 
 const ROUTES = {
@@ -19,36 +21,55 @@ const ROUTES = {
 };
 
 describe("MePage", () => {
-  beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); resetPlaybackRateForTests(); });
-  it("shows the account, server services and logs out", async () => {
+  beforeEach(() => { resetServerAiConfigCache(); localStorage.clear(); resetPlaybackRateForTests(); resetZhDefsModeMemory(); });
+  it("shows the profile card linking to account settings, with no logout on the home", async () => {
     const mock = createFetchMock(ROUTES);
-    const logout = vi.fn();
-    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), logout });
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
     expect(screen.getByTestId("me-username")).toHaveTextContent("alice");
-    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("openai/tts-1, azure/speech"));
-    expect(screen.getByTestId("me-services")).toHaveTextContent("alloy");
-    await userEvent.click(screen.getByTestId("me-logout"));
-    expect(logout).toHaveBeenCalled();
+    expect(screen.getByTestId("me-profile")).toHaveAttribute("href", "/me/account");
+    expect(screen.queryByTestId("me-logout")).toBeNull();
+    expect(screen.queryByTestId("me-services")).toBeNull(); // 服务器块已移到 /me/services
+    await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Default"));
+  });
+
+  it("shows the email binding state on the profile and the account row", () => {
+    const unbound = renderWithProviders(<MePage />, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }),
+      emailStatus: { masked: null, verified: false, binding: { state: "none", deadline: null } },
+    });
+    expect(screen.getByTestId("me-email")).toHaveTextContent("Email not bound");
+    expect(screen.getByTestId("me-account")).toHaveTextContent("Bind email");
+    unbound.unmount();
+    renderWithProviders(<MePage />, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }),
+      emailStatus: { masked: "a***@example.com", verified: true, binding: { state: "none", deadline: null } },
+    });
+    expect(screen.getByTestId("me-email")).toHaveTextContent("a***@example.com");
+    expect(screen.getByTestId("me-account")).toHaveTextContent("Bound");
+    expect(screen.getByTestId("me-account")).not.toHaveTextContent("Bind email");
+  });
+
+  it("groups the home into learning, preferences and settings, without the rank card", () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    for (const title of ["Learning", "Preferences", "Settings"]) expect(screen.getByRole("group", { name: title })).toBeInTheDocument();
+    expect(screen.queryByTestId("rank-card")).toBeNull();
+    expect(screen.getByTestId("me-voice")).toHaveAttribute("href", "/me/voice");
   });
   it("changes the language", async () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
     await userEvent.selectOptions(screen.getByTestId("me-language"), "zh-CN");
-    expect(await screen.findByText("退出登录")).toBeInTheDocument();
+    expect(await screen.findByText("偏好")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByTestId("me-language"), "en");
   });
-  it("shows a translated error with a retry button when the server config fails", async () => {
-    let fail = true;
-    const mock = createFetchMock({ ...ROUTES, "GET /api/config/gpt_providers": () => (fail ? json({ error: "boom" }, 500) : json({ enjoyai: { models: ["gpt-4o"] } })) });
-    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
-    expect(await screen.findByTestId("me-ai-error")).toHaveTextContent("Something went wrong.");
-    fail = false;
-    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("openai/tts-1"));
-    expect(screen.queryByTestId("me-ai-error")).toBeNull();
-  });
-  it("shows the grammar prompt editor", async () => {
-    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
-    expect(await screen.findByTestId("grammar-prompt-input")).toHaveValue("RULES");
+  it("links the grammar rules row and shows whether a custom prompt is set", async () => {
+    const { unmount } = renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    const row = screen.getByTestId("me-grammar");
+    expect(row).toHaveAttribute("href", "/me/grammar");
+    await waitFor(() => expect(row).toHaveTextContent("Default"));
+    unmount();
+    const custom = createFetchMock({ ...ROUTES, "GET /api/me/grammar-prompt": () => json({ prompt: "Mine", default_prompt: "RULES", max_length: 2000 }) });
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: custom.fetch }) });
+    await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Customised"));
   });
   it("sets the read-aloud speed", async () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
@@ -57,6 +78,21 @@ describe("MePage", () => {
     await userEvent.selectOptions(select, "1.25");
     expect(localStorage.getItem(PLAYBACK_RATE_KEY)).toBe("1.25");
     expect(select).toHaveValue("1.25");
+  });
+  it("sets whether Chinese definitions show automatically or on tap, outside the settings object", async () => {
+    renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
+    const row = screen.getByTestId("me-zh-defs");
+    const rate = screen.getByTestId("me-playback-rate");
+    expect(Boolean(rate.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(row).toHaveValue("auto");
+    expect(row.closest("div")?.parentElement).toHaveTextContent("Show automatically");
+    const settingsBefore = localStorage.getItem("enjoy-web.settings");
+    await userEvent.selectOptions(row, "tap");
+    expect(getZhDefsMode()).toBe("tap");
+    expect(localStorage.getItem(ZH_DEFS_PREF_KEY)).toBe('"tap"');
+    expect(row).toHaveValue("tap");
+    expect(row.closest("div")?.parentElement).toHaveTextContent("Show on tap");
+    expect(localStorage.getItem("enjoy-web.settings")).toBe(settingsBefore);
   });
   it("links to the progress page", () => {
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
@@ -84,9 +120,9 @@ describe("MePage", () => {
     expect(mock.calls.find((c) => c.url.pathname === "/api/stats")?.url.searchParams.get("days")).toBe("7");
     unmount();
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock(ROUTES).fetch }) });
-    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+    await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Default"));
     expect(screen.queryByTestId("me-stats")).toBeNull();
-    expect(screen.getByTestId("me-logout")).toBeInTheDocument();
+    expect(screen.getByTestId("me-account")).toBeInTheDocument();
   });
   it("offers the room voice auto-text switch only when rooms are on", async () => {
     localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" }));
@@ -103,7 +139,7 @@ describe("MePage", () => {
     localStorage.removeItem("enjoy-web.settings");
     await i18n.changeLanguage("en");
     renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: createFetchMock({ ...ROUTES, "GET /api/rooms/config": () => json({ enabled: false }) }).fetch }) });
-    await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+    await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("Default"));
     expect(screen.queryByTestId("me-room-voice-auto-text")).toBeNull();
   });
   it("links to the vocabulary book", () => {
@@ -127,7 +163,7 @@ describe("MePage", () => {
       const off = createFetchMock({ ...ROUTES, "GET /api/wordbook/config": () => json({ enabled: false }) });
       renderWithProviders(<MePage />, { api: new ApiClient({ getToken: () => "t", fetchImpl: off.fetch }) });
       await waitFor(() => expect(off.calls.some((c) => c.url.pathname === "/api/wordbook/config")).toBe(true));
-      await waitFor(() => expect(screen.getByTestId("me-services")).toHaveTextContent("alloy"));
+      await waitFor(() => expect(screen.getByTestId("me-grammar")).toHaveTextContent("默认"));
       expect(screen.queryByTestId("me-wordbook")).toBeNull();
     } finally {
       localStorage.removeItem("enjoy-web.settings");
@@ -186,7 +222,7 @@ describe("Me in the liquid skin (plan 2026-10-15-liquid-glass L11)", () => {
     const row = screen.getByTestId("me-appearance");
     expect(row).toHaveAttribute("href", "/me/appearance");
     expect(row).toHaveTextContent(/清透|Clear|preset/);
-    expect(screen.getByTestId("me-logout").className).toContain("liquid:text-red");
+    expect(screen.getByTestId("me-profile")).toHaveAttribute("href", "/me/account");
   });
 
   it("keeps the classic structure when the switch is off", () => {

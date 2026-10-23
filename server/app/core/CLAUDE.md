@@ -6,7 +6,12 @@ Foundation layer used by every other package.
 - `config.py` – `Settings` (pydantic-settings, env/.env) plus pure ASR config predicates
   (`effective_realtime_asr`, `realtime_asr_configured`, ...) that `Settings.realtime_available` needs
 - `db.py` – async engine factory and `Base`; patches SQLAlchemy's aiosqlite `_terminate_graceful_close` so cancelling a task mid-query cannot hang on a dead worker thread (`test_db_cancel.py`)
-- `deps.py` – FastAPI dependencies: `get_settings`, `get_session`, `current_user`, `limited_user`
+- `deps.py` – FastAPI dependencies, three tiers over one `_authenticate` (token lookup, disabled check, sliding renewal):
+  `current_user` (default; 403 `email_binding_required` while binding is enforced and the user has no verified email),
+  `current_user_unbound` (same authentication, no binding check; used only by the four endpoints that must work while binding
+  is enforced: `GET /api/me`, `DELETE /api/sessions/current`, `POST /api/me/email/code`, `POST /api/me/email`), and
+  `limited_user` (per-user rate limit on top of `current_user`); plus `get_settings`, `get_session`, `client_ip`, `auth_rate_limit`
+- `account_policy.py` – `binding_state(settings, now)` -> `none` / `pending` / `enforced` and `binding_deadline(settings)`: pure, stdlib + `Settings` only (INDEX X33); `deps.py` calls it per request, never caches the answer
 - `security.py` – password hashing, access tokens
 - `errors.py` – JSON error handlers (`{"error": ...}`)
 - `logging_setup.py` – `app` logger handler + `ticket=` redaction on uvicorn loggers
@@ -30,12 +35,16 @@ Foundation layer used by every other package.
 - `log_buffer.py` – in-memory ring buffer (2000) on the `app` and `uvicorn.error` loggers for the admin log viewer;
   `redact` (ticket/Bearer/key=…/JSON keys/current secret values via `set_secrets`); installed by `configure_logging`
 - `learning_events.py` – learning event channel (learning-links spec §4; standard library only): frozen event
-  dataclasses `WordAnswered` / `AssessmentFinished` (+ `WeakWord`) / `MessageSent`, `LearningBus` (bounded deque,
+  dataclasses `WordAnswered` / `AssessmentFinished` (+ `WeakWord`) / `MessageSent` / `RealtimeTurnFinished` / `LibraryItemReady`
+  (L4: each subscription has its own master flag, `subscribe(..., flag=)`, default `links_enabled`; an event with no live subscription costs no queue slot), `LearningBus` (bounded deque,
   single consumer `run()`, per-handler timeout, circuit breaker, counters, `drain()` for tests/shutdown) and the
   contextvar `bind(bus)` (called by `current_user`) / `publish(event)` (never raises; only after `commit()`)
 - `rank_sources.py` – rank point source registry (learning-links spec §5.1; standard library only): `RankSource`,
   `register` (idempotent for an equal source; refuses `RESERVED_KINDS`, bad kinds, points outside 0–100),
   `registered`, `kinds`, `get`, `clear_for_tests`. Links register sources at startup; rank reads `LinkCredit`
+- `captcha.py` – ALTCHA v2 adapter (`altcha==2.3.0`, pinned; spec 2026-10-20-captcha-altcha R-C4/R-C5): `issue(secret, *, cost, counter, ttl, now)` is synchronous (the router runs it in a thread); `verify(header, secret, *, now)` runs our strict checks before the library and returns `Verified` or `None`, never raising or logging; `pick_counter` (server-side random counter, doubled for flagged IPs); `derived_keys` (HMAC-derived keys, the raw secret never reaches the library); `Verified.signature` is `repr=False`
+- `captcha_policy.py` – pure policy `captcha_required(mode, scope, flagged)` (standard library only, in `STDLIB_ONLY`): `off` never requires; `register` / `email_code` / `reset` always when on; `login` only when flagged, or always under `always`
+- `login_failures.py` – `LoginFailures`: two `RateLimiter`s (per IP, and per login name keyed with a per-process blake2b key, so no plain name is stored); `record` on a 401 only (unknown names too, R-C8), `flagged` for login, `ip_flagged` for the challenge multiplier, `reconfigure` from the settings hub; in process, not stored
 
 ## Allowed dependencies
 Standard library, third-party packages, `app.core.*` and `app.models` (deps needs `User`).
@@ -48,6 +57,8 @@ Nothing from providers/speech/services/realtime/routers – not even lazily.
 
 ## Tests
 `uv run pytest -q tests/test_config.py tests/test_security.py tests/test_logging_setup.py tests/test_timing.py tests/test_ratelimit.py tests/test_limits.py tests/test_settings_registry.py tests/test_runtime_settings.py tests/test_hot_reload.py tests/test_secretbox.py tests/test_quotas.py tests/test_metering.py tests/test_metering_instrumentation.py tests/test_maintenance.py tests/test_log_buffer.py`
+Binding gate: `uv run pytest -q tests/test_accounts_binding_gate.py`
+Human verification: `uv run pytest -q tests/test_captcha_core.py tests/test_captcha_policy.py tests/test_captcha_login_failures.py tests/test_architecture.py`
 
 ## Pitfalls
 - Settings field names are the env contract (`.env.example`, docker-compose); renaming breaks deploys.
@@ -62,3 +73,4 @@ Nothing from providers/speech/services/realtime/routers – not even lazily.
 - `learning_events.publish(...)` goes strictly after the publisher's `await session.commit()`; publishers never
   check switches or import `app.links`. The bus logs only link key, event class and exception class — never words,
   message text, exception messages or user ids. `MessageSent.text` stays in memory (`repr=False`).
+- Human verification: never log or return the payload, `solution`, `nonce`, `salt`, signature, `derivedKey` or `CAPTCHA_SECRET`; `captcha_policy.py` stays standard-library only (`STDLIB_ONLY` in `tests/test_architecture.py`).

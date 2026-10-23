@@ -3,3 +3,6 @@
 // 不要在这里静态导出页面模块、library-api、视觉层或动效。
 export { LibraryListPage, LibraryPlayerPage } from "./lazy-pages";
 export { useLibraryEnabled } from "./use-library-enabled";
+// 配音的懒加载工具包(计划 L5 R17):两行都不是 `export … from`,主包守卫不把它们当静态导出。
+export const loadDubbingKit = () => import("./dubbing-kit");
+export type DubbingKit = Awaited<ReturnType<typeof loadDubbingKit>>;

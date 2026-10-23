@@ -43,6 +43,9 @@ export interface UserSummary {
   assessments: number;
   recording_bytes: number;
   last_active_at: string | null;
+  /** 脱敏邮箱(如 a***@qq.com);未绑定为 null。从不返回完整邮箱。 */
+  email_masked?: string | null;
+  email_verified?: boolean;
 }
 
 export interface UsersPage extends Page {
@@ -55,9 +58,13 @@ export interface UserDetail {
   username: string;
   created_at: string;
   grammar_prompt: string | null;
+  /** /api/avatars/<id>,没有头像为 null(管理端只读) */
+  avatar_url?: string | null;
   counts: { conversations: number; messages: number; assessments: number; practice_items: number; vocabulary: number };
   recording_bytes: number;
   last_active_at: string | null;
+  email_masked?: string | null;
+  email_verified?: boolean;
 }
 
 export interface ConversationItem {

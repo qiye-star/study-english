@@ -28,7 +28,7 @@ describe("PracticeListPage", () => {
     expect(await screen.findAllByTestId("practice-item")).toHaveLength(2);
     expect(screen.getAllByTestId("practice-item")[1]).toHaveTextContent("Dictionary");
     await userEvent.click(screen.getAllByTestId("practice-item")[0]);
-    expect(screen.getByTestId("location")).toHaveTextContent("/practice");
+    expect(screen.getByTestId("location")).toHaveTextContent("/practice/shadow");
     expect(JSON.parse(screen.getByTestId("state").textContent!)).toEqual({ reference: "Nice to meet you." });
   });
 

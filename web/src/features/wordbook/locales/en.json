@@ -12,7 +12,7 @@
       },
       "setting": {
         "label": "Definitions",
-        "help": "Shown once a card is open. Quizzes stay in Chinese. In English only, words without an English definition still show Chinese; the 中 button on a card shows it for that card. English definitions come from an open dictionary and are a reference only.",
+        "help": "Shown once a card is open. Quizzes stay in Chinese. In English only, words without an English definition still show Chinese; the 中 button on a card shows it for that card. English definitions come from an open dictionary and are a reference only. Me → Chinese definitions can hide them until tapped.",
         "options": { "both": "Both", "zh": "Chinese only", "en": "English only" }
       },
       "phrases": {

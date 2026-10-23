@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +9,7 @@ import { UsersPage } from "./users-page";
 
 vi.mock("../features/users/api", () => ({ listUsers: vi.fn() }));
 const listUsers = vi.mocked(usersApi.listUsers);
-const DEFAULT = { status: "all", sort: "recent" };
+const DEFAULT = { status: "all", sort: "recent", email: "all" };
 
 const user = (n: number): UserRow => ({
   id: `u${n}`,
@@ -85,8 +85,38 @@ describe("UsersPage", () => {
     expect(await screen.findByText("user1")).toBeInTheDocument();
     expect(screen.getAllByText("已停用").length).toBeGreaterThan(1); // the chip and the badge
     await userEvent.click(screen.getByRole("button", { name: "已停用" }));
-    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("", 1, { status: "disabled", sort: "recent" }));
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("", 1, { status: "disabled", sort: "recent", email: "all" }));
     await userEvent.selectOptions(screen.getByRole("combobox"), "storage");
-    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("", 1, { status: "disabled", sort: "storage" }));
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("", 1, { status: "disabled", sort: "storage", email: "all" }));
+  });
+  it("shows the masked email with a verified marker and marks unbound users; username stays the identity", async () => {
+    listUsers.mockResolvedValue({
+      users: [
+        { ...user(1), email_masked: "a***@qq.com", email_verified: true },
+        { ...user(2), email_masked: "b***@qq.com", email_verified: false },
+        { ...user(3), email_masked: null, email_verified: false },
+      ],
+      page: 1,
+      next: null,
+      total: 3,
+    });
+    renderPage();
+    expect(await screen.findByText("a***@qq.com")).toBeInTheDocument();
+    expect(screen.getByText("b***@qq.com")).toBeInTheDocument();
+    expect(screen.getByText("已验证")).toBeInTheDocument();
+    expect(screen.getByText("未验证")).toBeInTheDocument();
+    expect(screen.getByText("未绑定")).toBeInTheDocument();
+    expect(screen.getByText("user3")).toBeInTheDocument();
+  });
+
+  it("filters by email binding", async () => {
+    listUsers.mockResolvedValue({ users: [user(1)], page: 1, next: null, total: 1 });
+    renderPage();
+    await screen.findByText("user1");
+    const group = screen.getByRole("group", { name: "邮箱" });
+    await userEvent.click(within(group).getByRole("button", { name: "未绑定邮箱" }));
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("", 1, { status: "all", sort: "recent", email: "unbound" }));
+    await userEvent.click(within(group).getByRole("button", { name: "已绑定邮箱" }));
+    await waitFor(() => expect(listUsers).toHaveBeenLastCalledWith("", 1, { status: "all", sort: "recent", email: "bound" }));
   });
 });

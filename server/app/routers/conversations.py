@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_, delete, func, or_, select, update
@@ -20,6 +20,7 @@ from app.services.grammar import normalize_grammar
 from app.services.stats import local_date
 from app.models import AgentTutorSession, Assessment, ChatGreeting, Conversation, Message, User, iso_utc, utcnow
 from app.services.chat_recordings import IN_CHUNK, _chunks, drop_assessments, remove_files  # noqa: F401
+from app.storage import get_store
 
 router = APIRouter(prefix="/api")
 
@@ -292,6 +293,7 @@ async def update_conversation(
 
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
+    request: Request,
     conversation_id: ItemId,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
@@ -314,7 +316,7 @@ async def delete_conversation(
     await drop_conversation(session, row.id)  # agents memory: thread state + recaps go with the chat (plan A2 R-M15)
     await session.delete(row)
     await session.commit()
-    remove_files(settings, paths)
+    await remove_files(get_store(request.app), paths)
     return {"id": conversation_id}
 
 
@@ -468,6 +470,7 @@ async def update_message(
 
 @router.delete("/messages/{message_id}")
 async def delete_message(
+    request: Request,
     message_id: ItemId,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
@@ -480,5 +483,5 @@ async def delete_message(
     await session.delete(row)
     paths = await drop_assessments(session, chat)
     await session.commit()
-    remove_files(settings, paths)
+    await remove_files(get_store(request.app), paths)
     return {"id": message_id}

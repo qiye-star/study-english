@@ -1,0 +1,230 @@
+{
+  "errors": {
+    "disabled": "Dubbing is disabled",
+    "not_found": "Not Found",
+    "not_ready": "Item is not ready",
+    "roles_locked": "Roles are set by the editors",
+    "bad_roles": "Invalid roles",
+    "clip": "Invalid clip",
+    "clip_too_long": "Clip is too long",
+    "role_missing": "Role has no lines in the clip",
+    "take_done": "Take is finished",
+    "line_not_in_take": "Line is not in the take",
+    "line_done": "Line already recorded",
+    "assessment": "Assessment does not match the line",
+    "timing": "Invalid line timing",
+    "ai_unavailable": "AI is unavailable",
+    "ai_user_cap": "Daily AI limit reached",
+    "ai_global_cap": "AI is busy today"
+  },
+  "config": {
+    "enabled": true,
+    "suggest": true,
+    "limits": {
+      "max_lines": 12,
+      "max_ms": 90000,
+      "window_before_ms": 300,
+      "window_after_ms": 600,
+      "sync_tolerance_ms": 400,
+      "weights": {
+        "pronunciation": 60,
+        "fluency": 20,
+        "sync": 20
+      },
+      "max_roles": 6
+    }
+  },
+  "roles_get": {
+    "names": [],
+    "speakers": [
+      {
+        "idx": 0,
+        "speaker": "A"
+      },
+      {
+        "idx": 1,
+        "speaker": "B"
+      },
+      {
+        "idx": 2,
+        "speaker": "A"
+      }
+    ],
+    "editable": true,
+    "locked": null
+  },
+  "roles_put": {
+    "names": [
+      {
+        "key": "A",
+        "name": "Host"
+      }
+    ],
+    "speakers": [
+      {
+        "idx": 0,
+        "speaker": "A"
+      },
+      {
+        "idx": 1,
+        "speaker": "B"
+      },
+      {
+        "idx": 2,
+        "speaker": "A"
+      }
+    ],
+    "editable": true,
+    "locked": null
+  },
+  "suggest": {
+    "speakers": [
+      {
+        "idx": 0,
+        "speaker": "A"
+      },
+      {
+        "idx": 1,
+        "speaker": "B"
+      },
+      {
+        "idx": 2,
+        "speaker": "A"
+      }
+    ]
+  },
+  "take_create": {
+    "take": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "item_id": "00000000-0000-4000-8000-000000000000",
+      "seg_from": 0,
+      "seg_to": 2,
+      "role": "A",
+      "status": "recording",
+      "expected": [
+        0,
+        2
+      ],
+      "total_score": null,
+      "summary": null,
+      "lines": [],
+      "created_at": "2026-01-01T00:00:00Z",
+      "finished_at": null
+    }
+  },
+  "takes_list": {
+    "takes": [
+      {
+        "id": "00000000-0000-4000-8000-000000000000",
+        "item_id": "00000000-0000-4000-8000-000000000000",
+        "seg_from": 0,
+        "seg_to": 2,
+        "role": "A",
+        "status": "recording",
+        "expected": [
+          0,
+          2
+        ],
+        "total_score": null,
+        "summary": null,
+        "lines": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "finished_at": null
+      }
+    ]
+  },
+  "line": {
+    "line": {
+      "seg_idx": 0,
+      "pronunciation": 99,
+      "fluency": 97,
+      "sync": 50,
+      "sync_basis": "words",
+      "score": 89
+    }
+  },
+  "finish": {
+    "take": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "item_id": "00000000-0000-4000-8000-000000000000",
+      "seg_from": 0,
+      "seg_to": 2,
+      "role": "A",
+      "status": "done",
+      "expected": [
+        0,
+        2
+      ],
+      "total_score": 44,
+      "summary": {
+        "pronunciation": 99,
+        "fluency": 97,
+        "sync": 50
+      },
+      "lines": [
+        {
+          "assessment_id": "00000000-0000-4000-8000-000000000000",
+          "pronunciation": 99,
+          "fluency": 97,
+          "sync": 50,
+          "sync_basis": "words",
+          "score": 89,
+          "onset_ms": 10,
+          "ratio_pct": 570,
+          "seg_idx": 0,
+          "stale": false
+        },
+        {
+          "missing": true,
+          "reason": "not_recorded",
+          "seg_idx": 2,
+          "stale": false
+        }
+      ],
+      "created_at": "2026-01-01T00:00:00Z",
+      "finished_at": "2026-01-01T00:00:00Z"
+    }
+  },
+  "take_detail": {
+    "take": {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "item_id": "00000000-0000-4000-8000-000000000000",
+      "seg_from": 0,
+      "seg_to": 2,
+      "role": "A",
+      "status": "done",
+      "expected": [
+        0,
+        2
+      ],
+      "total_score": 44,
+      "summary": {
+        "pronunciation": 99,
+        "fluency": 97,
+        "sync": 50
+      },
+      "lines": [
+        {
+          "assessment_id": "00000000-0000-4000-8000-000000000000",
+          "pronunciation": 99,
+          "fluency": 97,
+          "sync": 50,
+          "sync_basis": "words",
+          "score": 89,
+          "onset_ms": 10,
+          "ratio_pct": 570,
+          "seg_idx": 0,
+          "stale": false
+        },
+        {
+          "missing": true,
+          "reason": "not_recorded",
+          "seg_idx": 2,
+          "stale": false
+        }
+      ],
+      "created_at": "2026-01-01T00:00:00Z",
+      "finished_at": "2026-01-01T00:00:00Z"
+    }
+  }
+}

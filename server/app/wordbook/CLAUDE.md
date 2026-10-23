@@ -13,6 +13,7 @@
   two fuzzy in a row → unknown), spot-check hash, new-word boxes, same-day quiz / re-rate targets (pure)
 - `forms.py` – 词形 → 原形小表加载器(forms.txt,懒加载、文件变了自动重读)
 - `lookup.py` – 选词词典(DictionaryLookup:规范化 → 七本书直接命中 → 词形 → 短语表;不记录查询)
+- `examples.py` – 复习例句端口 `ExampleProvider`(L4 R13):`DictionaryExampleProvider`(= `quiz.cloze_example`,逐字不变)、`LibraryExampleProvider`(用户自己的 ready 库句子,经 `segment_lemma` 查,不消耗 `question_rng`)、`provider_for(settings)`(两个开关都开才用库)
 - `option_memo.py` – 出题时记「选项原文 → 词键」的进程内有界 LRU(挂在 `DictionaryStore.option_memo`),答题后回填 `/answers` 的 `option_info`(无日志调用;取不到就省略)
 
 ## Allowed dependencies
@@ -57,6 +58,7 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
 - Reset deletes only `vocabulary_items` with `source='wordbook:<book>'` and resets cursor/seed; the router injects the rank
   sync as `before_delete` so it runs only after the book, confirmation and daily-limit checks pass.
   Settings/pause/resume/bonus share 60/day (`wordbook_settings`), reset 2/day (`wordbook_resets`).
+- 例句端口(L4 R13/R15):`quiz.build_question` 与 `eligible_qtypes` 仍用词典例句决定资格;库句子只替换已被选为 cloze 的题的句子。`LibraryExampleProvider` 只取该用户自己的句子,用 `sha256("example:…")` 取下标,绝不消耗 `question_rng`(干扰项与选项顺序不变)。拼写句组 `cloze.py` 不用库句子(第二步)。
 - 已学词 = `source='wordbook:<启用书>'`;盒子 0–5 分三档(`learned.TIERS`,熟练下界 = `plan.MASTERED_BOX`);响应没有映射(`by_book` 是列表)。
 - 词、前缀、游标永远不进 URL:`/learned/query`、`/learned/card`、`/free/start` 都是 POST 体;
   `test_wordbook_learned_api.py::test_new_routes_carry_no_word_in_the_url` 守着。`GET /cards/{book}/{key}` 是遗留写法,别再让新页面用。
@@ -66,3 +68,7 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
 - `free_start` 用系统熵 `random.Random()`(可注入),不用选书 `seed`;空池不扣 `FREE_STARTS_DAILY_MAX`(200)。
 - 契约样例新增 `learned_summary / learned_list / learned_card / free_start / answer_free`。
 - 选词词典 `POST /api/dictionary/lookup` 的词只在 POST 体;`lookup.py` 里不许有 logging 调用,`forms.py` 只记行数、不记词(`test_dictionary_lookup.py::test_the_module_is_not_a_logging_site`);不受 `WORDBOOK_ENABLED` 控制;`DictionaryLookup` 随 `dictionary(app)` 的 store 更换(`lookup_service`)。
+- FSRS 灰度(L3):FSRS 模式下盒子由稳定度推导(`scheduling.derive_box`);`plan.py`、`quiz.py`、`learned.py` 按盒子选题型与分档的规则不要改成读 stability。
+  `reviewed_at` 只在调度真的改了卡时写(`_write_srs` 成功、`applied` 为真),自由练习、未到期答对与重复提交都是 NULL。
+  `/answers` 与生词本的响应 `grade` 仍是三值;Easy 只进调度(`grading.review_grade`,仅无提示的正确拼写 / 听写且在时限内)。
+  `set_learn_box` 会清空四列 FSRS 状态,下一次复习按新盒子重播种。`wordbook_fsrs_pct` 默认 0(全员 Leitner),降低即回滚。

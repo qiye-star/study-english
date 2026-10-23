@@ -89,3 +89,25 @@ export const deleteItem = (id: string, reason: string, confirm: string) =>
   request<{ id: string; outcome: "deleted" | "retired"; refs: number }>(`${BASE}/${enc(id)}/delete`, { method: "POST", json: { reason, confirm } });
 export const purgeItem = async (id: string, reason: string, confirm: string) =>
   camel<{ id: string; copiesDeleted: number; users: number }>(await request(`${BASE}/${enc(id)}/purge`, { method: "POST", json: { reason, confirm } }));
+
+/** plan L1 Task 23: bundles (server routers/admin_catalog.py). Export and import never run the pipeline. */
+export interface BundleRow { catalogId: string; bytes: number; exportedAt: string; importable: boolean }
+export const exportBundle = async (id: string) =>
+  camel<{ catalogId: string; segments: number; bytes: number }>(await request(`${BASE}/${enc(id)}/bundle`, { method: "POST", json: {} }));
+export const listBundles = async () => camel<{ bundles: BundleRow[] }>(await request<unknown>(`${BASE}/bundles`)).bundles;
+export const importBundle = async (id: string, reason: string) =>
+  camel<{ id: string; segments: number; status: string; published: boolean }>(
+    await request(`${BASE}/bundles/${enc(id)}/import`, { method: "POST", json: { reason } }));
+
+/** 角色标注(plan L5 A1;服务端 routers/admin_dubbing.py)。speaker 为 A–F 或 null(无角色)。 */
+export interface RoleName { key: string; name: string }
+export interface RoleSpeaker { idx: number; speaker: string | null }
+export interface RolesState { names: RoleName[]; speakers: RoleSpeaker[]; editable: boolean; locked: string | null }
+export interface RolesSaved extends RolesState { copies: number }
+export const fetchRoles = async (id: string) => camel<RolesState>(await request<unknown>(`${BASE}/${enc(id)}/roles`));
+export const putRoles = async (id: string, body: { names: Record<string, string | null>; speakers: RoleSpeaker[] }) =>
+  camel<RolesSaved>(await request(`${BASE}/${enc(id)}/roles`, { method: "PUT", json: body }));
+/** 智能建议:最多 40 句一段,只返回草稿,保存要另外 PUT。 */
+export const suggestRoles = async (id: string, segFrom: number, segTo: number) =>
+  camel<{ speakers: { idx: number; speaker: string }[] }>(
+    await request(`${BASE}/${enc(id)}/roles/suggest`, { method: "POST", json: { seg_from: segFrom, seg_to: segTo } }));

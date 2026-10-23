@@ -1,0 +1,21 @@
+{
+  "web": {
+    "voiceSettings": {
+      "title": "Read-aloud voice",
+      "intro": "Choose the voice for read-aloud in each place. \"Default\" follows the server's default voice.",
+      "loading": "Loading read-aloud settings…",
+      "unavailable": "Read-aloud settings are unavailable right now.",
+      "scene": {
+        "word": { "title": "Words", "hint": "Dictionary, word book, spelling and read-aloud of a selected word" },
+        "sentence": { "title": "Sentences", "hint": "Shadowing reference and spelling sentences" },
+        "message": { "title": "Chat messages", "hint": "Read-aloud and auto-speak in chats and rooms. A voice chosen for a single conversation still wins." }
+      },
+      "model": "Model",
+      "voice": "Voice",
+      "followDefault": "Default",
+      "preview": "Preview",
+      "stopPreview": "Stop preview",
+      "stale": "The saved voice is no longer available, so the default voice is used."
+    }
+  }
+}

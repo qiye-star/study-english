@@ -15,6 +15,7 @@ import { LQ_CHIP_ON, LQ_ON_BLUR, LQ_PRIMARY, LQ_SECONDARY } from "~/components/l
 import { SurfaceCard } from "~/components/surface-card";
 import { ToneBadge } from "~/components/tone-badge";
 import { ttsErrorMessage, useTtsPlayer } from "~/features/chat";
+import { resolveTtsVoice } from "~/settings/tts-voice-pref";
 import { PageHeader } from "~/layout/page-header";
 import { cn } from "~/lib/cn";
 import {
@@ -236,12 +237,14 @@ export function WordbookSpellPage() {
 
   const listenLine = () => {
     if (!currentLine || !ai) return;
-    void tts.play(`spell-line-${currentLine.sentenceId}`, sentenceText(currentLine), ai.defaultTts.model, ai.defaultTts.voice);
+    const voice = resolveTtsVoice("sentence", ai);
+    void tts.play(`spell-line-${currentLine.sentenceId}`, sentenceText(currentLine), voice.model, voice.voice);
   };
 
   const listenWord = (key: string, word: string) => {
     if (!ai) return;
-    void tts.play(`spell-word-${key}`, word, ai.defaultTts.model, ai.defaultTts.voice);
+    const voice = resolveTtsVoice("word", ai);
+    void tts.play(`spell-word-${key}`, word, voice.model, voice.voice);
   };
 
   const toggleLength = () => {

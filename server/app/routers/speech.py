@@ -20,6 +20,7 @@ from app.core.config import Settings
 from app.core.deps import current_user, get_session, get_settings, limited_user
 from app.models import SpeechToken, User, utcnow
 from app.services.chat_recordings import cleanup_orphan_chat_recordings, drop_assessments, remove_files  # noqa: F401
+from app.storage import get_store
 from app.services.stats import word_buckets
 from app.services.pronunciation import MAX_REFERENCE_CHARS, TIMEOUT_BASE_SECONDS, TIMEOUT_CAP_SECONDS, _ise_entry
 from app.providers.xfyun import XfyunError, XfyunIse, XfyunNotConfigured
@@ -188,7 +189,7 @@ async def create_assessment(
         if source_value not in SOURCES:
             raise HTTPException(400, "Invalid source")
         if source_value == "chat":
-            await cleanup_orphan_chat_recordings(session, settings, user)
+            await cleanup_orphan_chat_recordings(session, get_store(request.app), settings, user)
         try:
             await check_quota(session, settings, user.id, len(wav_bytes))
         except QuotaExceeded:
@@ -218,8 +219,8 @@ async def create_assessment(
 
     try:
         assessment_id = await save_assessment(
-            session, settings, user.id, wav_bytes=wav_bytes, duration=duration, reference=reference,
-            language=language, source=source_value, result=result,
+            session, settings, user.id, store=get_store(request.app), wav_bytes=wav_bytes, duration=duration,
+            reference=reference, language=language, source=source_value, result=result,
         )
     except OSError:
         raise HTTPException(500, "Could not save the recording")

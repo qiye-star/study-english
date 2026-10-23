@@ -46,7 +46,7 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   system user; owned rooms pass to the earliest other member, a room
   nobody else joined is kept closed with `owner_id = NULL` — rooms and room messages are never deleted),
   per-user quota overrides (`quota.set|clear`; above `operator_ceiling` = 10x the site value only superadmin + step-up)
-- `invites.py` – multi-use invite codes (SHA-256 only; plain code returned once); consumption in `services/invites.py`
+- `invites.py` – admin invite codes (single and batch, `max_uses` 1–1000, batch up to 100; SHA-256 only, the plain code is returned once with `no-store`); listing with `kind`/`owner`/`state` filters and the exact redeemer count (usernames: first 5), revoke, redemptions per code, and the per-user code (`user_status`, `revoke_user_code`, `rotate_user_code`: the new plain code is created and discarded here, so the operator never sees it); audit actions `invite.create`, `invite.batch_create` (count only), `invite.revoke`, `invite.user.revoke`, `invite.user.rotate` (never a code); consumption in `services/invites.py`, the owner's code in `services/user_invites.py`
 - `rooms_admin.py` – room/report queries and `report.resolve`; live actions (close/kick/hide/AI mute) are in
   `routers/admin_rooms.py`
 - `wordbook_admin.py` – word books (spec 2026-10-10-wordbook §9): `overview` (enabled books: file bytes + sha256 vs
@@ -66,11 +66,13 @@ client IP is outside `ADMIN_IP_ALLOWLIST`.
   `summary`, `top_users`, `health`, `missing_prices` (for the config doctor)
 - `announcements.py` – announcements (create/update/archive, public `active`) and `set_maintenance` (a thin wrapper
   over `settings_service.save(action="maintenance.set")`; turning it on = step-up + reason + typed `MAINTENANCE_MODE`)
+- `avatars_admin.py` – avatar moderation: `reports` (viewer; `open` = unresolved reports on the user's current avatar, `resolved` = handled; one row per user with count, last reason and time), `remove` (operator + step-up; clears `avatar_id`, resolves that avatar's reports, audit `user.avatar.remove` with `after={removed, reports}` and the operator's reason, then deletes the file after the commit), `dismiss` (operator; keeps the avatar, audit `user.avatar.dismiss`, 404 `No open reports`). Audit rows carry user ids, actions and counts, never avatar ids, file names or paths. Routes in `routers/admin_avatars.py`; tests `tests/test_admin_avatars.py` and `tests/test_avatars_privacy_sweep.py`
 - `changelog.py` – 更新日志(spec 2026-10-14-changelog-design;plan `2026-10-14-changelog.md`):用户侧 `public_page`(已发布、按 `entry_date` 倒序、游标 `YYYY-MM-DD.<id>`、`unread` / `latest_id` / 逐条 `is_new`)与 `mark_seen`(已读位置只前进、夹到最大已发布 id、新用户首次最多 `FIRST_VISIT_UNREAD = 3` 条未读);管理侧 `validate`(逐键、错误只回字段名)、`admin_listing`、`create` / `edit` / `publish` / `unpublish` / `remove`(软删除 `archived_at`),审计 `changelog.*` 只记条目 id 与动作(无 summary / before / after)。没有任何日志调用。路由 `routers/changelog.py`、`routers/admin_changelog.py`;已读按 **id** 比较(spec),id 较小的草稿在用户标记已读之后才发布不会再亮红点,所以导入命令按日期升序建草稿
 - `changelog_import.py` – `python -m app.admin.changelog_import [--dir DIR] [--dry-run]`:读 `*.json` 草稿(容器里 `/app/changelog`,检出里 `docs/changelog`),按 `(entry_date, title_zh)` 幂等建草稿(已发布 / 已编辑 / 已删除的都不动不复活;改标题 = 新草稿),全有或全无(失败退出 2,目录不存在退出 1),只打印数量;每条记审计 `changelog.import`(actor `cli`)。镜像靠 `COPY docs/changelog /app/changelog` 带上草稿,**重建容器只在用户要求时做**
 - `system.py` – `status(app, session)` for `GET /api/admin/system` (version, DB/alembic, disk, tasks, settings;
   its findings are computed locally, separate from `doctor.py`)
 - `housekeeping.py` – orphan recording scan/delete (token-guarded rescan), audit purge with anchor, `purge_expired`
+- human verification (spec 2026-10-20-captcha-altcha §9): `doctor.py` reports `captcha_secret_missing` (error: mode not `off` and `captcha_secret` empty), `captcha_always_blocks_desktop` (warn: `always`) and `captcha_without_proxy_headers` (warn: `trust_proxy_headers` off). `settings_service.py` asks for the danger confirmation on any `captcha_mode` change, on lowering `captcha_cost`, `captcha_counter_max`, `captcha_flagged_multiplier` or `captcha_login_window_minutes`, and on raising `captcha_login_failures`, `captcha_ttl_seconds` or `captcha_challenges_per_minute` (these follow the code; spec §9 says the login window has no danger). The settings page shows them through the registry, so the admin front end is unchanged
 - `backups.py` – SQLite `VACUUM INTO` backups, prune, signed one-time download links, `daily_loop` (backup at
   `BACKUP_HOUR_UTC` + daily `purge_expired`; registered in `app.state.background_tasks["backups"]`)
 
@@ -88,7 +90,7 @@ Never import routers from here (room runtime lives in `routers/admin_rooms.py` v
 ## Tests
 `uv run pytest -q tests/test_admin_*.py tests/test_quotas*.py tests/test_architecture.py tests/test_usage*.py
 tests/test_announcements.py tests/test_changelog_*.py tests/test_system_status.py tests/test_housekeeping.py tests/test_backups.py
-tests/test_invites.py tests/test_invite_mode_db_codes.py tests/test_prompts*.py tests/test_rank_rules*.py`
+tests/test_invites*.py tests/test_invite_mode_db_codes.py tests/test_user_invites.py tests/test_admin_invites_v2.py tests/test_prompts*.py tests/test_rank_rules*.py`
 (helpers: `tests/admin_helpers.py` — `ADMIN_ENABLED`, `PASSWORD`, `login_as(app, client, role)`, `assert_no_secrets`)
 
 ## Pitfalls

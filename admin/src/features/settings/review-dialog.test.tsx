@@ -4,7 +4,7 @@ import { expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import * as api from "./api";
 import { ReviewDialog } from "./review-dialog";
-import { fixtureList } from "./test-fixtures";
+import { fixtureList, smtpHostItem } from "./test-fixtures";
 
 vi.mock("./api");
 
@@ -49,4 +49,19 @@ it("explains that rank settings are managed by the published rank rules", async 
   await userEvent.click(screen.getByRole("button", { name: "保存" }));
   expect(await screen.findByText(/已由段位规则管理.*段位规则.*页修改/)).toBeInTheDocument();
   expect(screen.queryByText(/Managed by/)).toBeNull();
+});
+
+it("guards an SMTP host change with the SMTP password pair and the typed SMTP_HOST phrase", async () => {
+  vi.mocked(api.saveSettings)
+    .mockRejectedValueOnce(new ApiError(409, "Key would be sent to a new host", undefined, { pairs: ["smtp_host"], hosts: { smtp_host: "smtp.new.example" } }))
+    .mockResolvedValueOnce({ revision: 10, changed: ["smtp_host"], pendingRestart: [], applyErrors: [] });
+  const onSaved = vi.fn();
+  render(<ReviewDialog items={[...fixtureList().items, smtpHostItem()]} draft={{ smtp_host: "smtp.new.example" }} onSaved={onSaved} onClose={() => {}} />);
+  await userEvent.type(screen.getByLabelText("理由"), "迁移邮件服务");
+  await userEvent.type(screen.getByLabelText("输入 SMTP_HOST 以确认"), "SMTP_HOST");
+  await userEvent.click(screen.getByRole("button", { name: "保存" }));
+  await userEvent.click(await screen.findByRole("checkbox", { name: "我确认把现有密钥发送到 smtp.new.example" }));
+  await userEvent.click(screen.getByRole("button", { name: "保存" }));
+  expect(api.saveSettings).toHaveBeenLastCalledWith(expect.objectContaining({ confirmPairs: ["smtp_host"] }));
+  expect(onSaved).toHaveBeenCalled();
 });

@@ -1,8 +1,8 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import (JSON, BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text,
-                        UniqueConstraint, false, text, true)
+from sqlalchemy import (JSON, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, SmallInteger, String, Text,
+                        UniqueConstraint, false, func, text, true)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -33,6 +33,13 @@ class User(Base):
     grammar_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 账号 v2(计划 S1):昵称在服务层校验(X8),列留余量
+    nickname: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 账号 v2 · 头像(计划 S2):32 位十六进制随机 id,唯一(NULL 不冲突)
+    avatar_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    __table_args__ = (Index("uq_users_avatar_id", "avatar_id", unique=True),)
 
 
 class AccessToken(Base):
@@ -42,6 +49,9 @@ class AccessToken(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # 账号 v2(X4):NULL = 有效,第一次使用时由滑动续期写上;撤销 = 删除本行
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SpeechToken(Base):
@@ -137,6 +147,11 @@ class VocabularyItem(Base):
     lapses: Mapped[int] = mapped_column(Integer, default=0)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # FSRS state (migration 0028, L3 R6): NULL until the first review seeds it from the box. Leitner ignores them.
+    stability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    difficulty: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fsrs_state: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    last_review: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ---- 段位赛与联机练习(设计文档 2026-10-09 §6)----
@@ -595,6 +610,15 @@ class InviteCode(Base):
     created_by: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # invites v2 (plan 2026-10-14-invites-v2 R-I1): admin codes are one-off/batch codes; user codes are one
+    # permanent random code per user. code_enc (secretbox) exists only for kind='user', so the owner can see it again.
+    kind: Mapped[str] = mapped_column(String(8), default="admin", server_default="admin")
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
+                                                      index=True)
+    code_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    __table_args__ = (Index("uq_invite_codes_owner_active", "owner_user_id", unique=True,
+                            sqlite_where=text("revoked_at IS NULL AND owner_user_id IS NOT NULL"),
+                            postgresql_where=text("revoked_at IS NULL AND owner_user_id IS NOT NULL")),)
 
 
 # ---- 联机练习 v2(设计文档 2026-10-10-rooms-v2 §7)----
@@ -700,6 +724,8 @@ class WordbookEvent(Base):
     credit: Mapped[int] = mapped_column(Integer, default=0)  # 0–100
     day: Mapped[str] = mapped_column(String(10))  # 用户本地日 YYYY-MM-DD
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Set only when this event changed a card's schedule (migration 0028, L3 R8); NULL for practice and no-op answers.
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class WordbookExplanation(Base):
@@ -1024,6 +1050,8 @@ class LibraryItem(Base):
     last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 精选库副本(spec 2026-10-14-curated-library E1;无外键,R-SC1)
     catalog_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # L5 R2/R3:角色名 {"A": "名字", …},只存已用到的键;NULL = 没有标注角色
+    role_names: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class LibrarySegment(Base):
@@ -1042,13 +1070,16 @@ class LibrarySegment(Base):
     analysis_lang: Mapped[str | None] = mapped_column(String(8), nullable=True)
     # plan v2 R-V14:这一句时间可疑的原因(逗号分隔,如 "rate,pause");NULL = 没有;手动改时间后清空
     flags: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    # L5 R3:说话人字母 A–F;NULL = 未标注(配音里当「对方」)
+    speaker: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
 
 class LibraryAttempt(Base):
     """一次跟读评测的成绩。assessment_id 指向 assessments.id,SET NULL 语义由应用层保证(无外键,兼容 SQLite);
     text_hash = 评测时该句文本的指纹(计划 R-SC14):句子改字或重新分句后,旧成绩不再算在这一句上。"""
     __tablename__ = "library_attempts"
-    __table_args__ = (Index("ix_library_attempts_item_id_seg_idx", "item_id", "seg_idx"),)
+    __table_args__ = (Index("ix_library_attempts_item_id_seg_idx", "item_id", "seg_idx"),
+                      Index("ix_library_attempts_dub_id", "dub_id"))
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
@@ -1058,6 +1089,29 @@ class LibraryAttempt(Base):
     text_hash: Mapped[str] = mapped_column(String(16))
     score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # L5 R2:配音录制里的这一句(无外键,与 assessment_id 同语义;take 删除时置空)
+    dub_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
+class LibraryDub(Base):
+    """一次影视配音录制(take):一段连续片段、扮演一个角色。`lines` 的形状见 plan L5 R11:
+    `{"<idx>": {assessment_id, pronunciation, fluency, sync, sync_basis, score, onset_ms, ratio_pct}}`。
+    角色名与句子一样是用户内容,不进日志 / 审计 / 计量 / URL(只记 id 与数字)。"""
+    __tablename__ = "library_dubs"
+    __table_args__ = (Index("ix_library_dubs_user_id_item_id_created_at", "user_id", "item_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    item_id: Mapped[str] = mapped_column(ForeignKey("library_items.id", ondelete="CASCADE"))
+    seg_from: Mapped[int] = mapped_column(Integer)
+    seg_to: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(2))
+    status: Mapped[str] = mapped_column(String(10))  # recording / done
+    total_score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    lines: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ---- 精选库(设计文档 2026-10-14-curated-library §5;迁移 0022)----
@@ -1092,6 +1146,7 @@ class CatalogItem(Base):
     seg_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     low_confidence: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     ai_lang: Mapped[str] = mapped_column(String(8), default="zh-CN", server_default="zh-CN")
+    role_names: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # L5 R4:镜像 library_items.role_names
     published: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -1146,3 +1201,127 @@ class ChatPrefs(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     data: Mapped[dict] = mapped_column(JSON, default=dict)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    speaker: Mapped[str | None] = mapped_column(String(2), nullable=True)  # L5 R4:镜像 library_segments.speaker
+
+
+# ---- 账号 v2 ----
+
+
+class UserIdentity(Base):
+    """登录身份(邮箱):只存 HMAC 查找键与可解密副本;一个用户每个 provider 至多一条(计划 S1 / X9)。"""
+    __tablename__ = "user_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "subject_hmac", name="uq_user_identities_provider_subject"),
+        UniqueConstraint("user_id", "provider", name="uq_user_identities_user_provider"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(16))
+    subject_hmac: Mapped[str] = mapped_column(String(64))
+    subject_enc: Mapped[str] = mapped_column(Text)
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+def display_name():
+    """给其他用户看的名字的 SQL 表达式:昵称优先,否则登录名(X6)。
+    运营身份、审计、登录名仍用 `User.username`;与之对应的 Python 侧写法见 `display_of`。"""
+    return func.coalesce(User.nickname, User.username)
+
+
+def display_of(user: "User") -> str:
+    """`display_name()` 的 Python 版本(对已加载的 User 对象)。"""
+    return user.nickname or user.username
+
+
+class VerificationCode(Base):
+    """邮箱验证码(计划 S10;R-F2、R-F3、X10):只存 HMAC;码绑定 purpose 与目标,同一行也记录从不发送的「隐藏码」。
+    不存邮箱、不存明文码。"""
+    __tablename__ = "verification_codes"
+    __table_args__ = (Index("ix_verification_codes_target_purpose_created", "target_hmac", "purpose", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    channel: Mapped[str] = mapped_column(String(8))  # email (sms later)
+    purpose: Mapped[str] = mapped_column(String(16))  # register / reset / bind / change_email
+    target_hmac: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    code_hmac: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class EmailDailyCount(Base):
+    """全局每日发信计数(R-F4):`UPDATE ... WHERE sent < cap` 原子认领额度,多进程也准确。"""
+    __tablename__ = "email_daily_counts"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    sent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class AvatarReport(Base):
+    """头像举报(计划 S2;R-V6):举报人对同一头像只记一次;被举报者或举报人删除时一并级联删除。"""
+    __tablename__ = "avatar_reports"
+    __table_args__ = (UniqueConstraint("reporter_id", "avatar_id", name="uq_avatar_reports_reporter_avatar"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    avatar_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    avatar_id: Mapped[str] = mapped_column(String(32))
+    reporter_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    reason: Mapped[str] = mapped_column(String(16))  # inappropriate / impersonation / other
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class InviteRedemption(Base):
+    """一次邀请码兑换(invites-v2 R-I1):被邀请者的 user_id 唯一(一人一条);用户被删除后记录保留、user_id 置空。"""
+    __tablename__ = "invite_redemptions"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_invite_redemptions_user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code_id: Mapped[int] = mapped_column(ForeignKey("invite_codes.id"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    redeemed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---- 人机验证 ----
+class CaptchaReplay(Base):
+    """已用过的人机验证挑战(spec 2026-10-20-captcha-altcha §5、R-C7):主键是挑战签名,一次性认领。
+    没有用户与 IP 列;过期行由每日清理删除(过期签名本来就过不了 expiresAt 检查,删掉不会让重放复活)。"""
+    __tablename__ = "captcha_replays"
+    __table_args__ = (Index("ix_captcha_replays_expires_at", "expires_at"),)
+
+    signature: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+# ---- 词汇激活(L4,plan 2026-10-21-l4-activation-context R2 / R10) ----
+class WordUsage(Base):
+    """学过的词被用出口的计数。只存词元与计数,永不存消息文字;last_session 是会话标识的 sha256 前 16 位。
+    用户删除时级联删除(USER_ROWS);不影响 FSRS 调度(R9)。"""
+    __tablename__ = "word_usage"
+    __table_args__ = (Index("ix_word_usage_user_id_last_used_at", "user_id", "last_used_at"),)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
+    first_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    use_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    shadow_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    session_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_session: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    sources: Mapped[str] = mapped_column(String(32), default="", server_default="")
+
+
+class SegmentLemma(Base):
+    """句子倒排索引:(scope, owner_id, idx) 的句子里出现的词元。scope 为 lib(用户条目)或 cat(精选库条目)。
+    没有外键(两种 owner 共用一张表,SQLite 也无级联);读侧 join 属主表,孤儿不可见。lemma = "#v1" 的 idx=-1 行是建索引标记。"""
+    __tablename__ = "segment_lemma"
+    __table_args__ = (Index("ix_segment_lemma_lemma_scope", "lemma", "scope"),)
+
+    scope: Mapped[str] = mapped_column(String(3), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    idx: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)

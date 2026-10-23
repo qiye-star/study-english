@@ -20,10 +20,10 @@ def _indexes(con, table: str) -> dict[str, bool]:
     return {r[1]: bool(r[2]) for r in con.execute(f"pragma index_list({table})")}
 
 
-def test_head_is_0023_and_follows_0021(tmp_path, monkeypatch):
+def test_head_is_0025_and_0022_follows_0021(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0023"]
+    assert script.get_heads() == ["0031"]
     assert script.get_revision("0022").down_revision == "0021"
 
 
@@ -82,9 +82,10 @@ def test_models_declare_the_frozen_names():
     assert cols == {"id", "title", "level", "tags", "license_note", "source", "source_host", "source_url", "status",
                     "stage", "progress", "error_kind", "upload_total", "upload_received", "duration_ms", "media_path",
                     "poster_path", "media_mime", "media_bytes", "sub_source", "asr_seconds", "seg_count",
-                    "low_confidence", "ai_lang", "published", "published_at", "retired_at", "created_at", "updated_at"}
+                    "low_confidence", "ai_lang", "role_names", "published", "published_at", "retired_at", "created_at",
+                    "updated_at"}  # role_names: plan L5 R2 (0029)
     assert set(CatalogSegment.__table__.columns.keys()) == {"catalog_id", "idx", "start_ms", "end_ms", "text", "zh",
-                                                            "zh_lang", "analysis", "analysis_lang", "flags"}
+                                                            "zh_lang", "analysis", "analysis_lang", "flags", "speaker"}  # plan L5 R2
     assert "catalog_id" in LibraryItem.__table__.columns
     assert not LibraryItem.__table__.columns["catalog_id"].foreign_keys  # R-SC1
 
@@ -114,13 +115,15 @@ def test_catalog_paths_live_beside_user_dirs_and_reject_bad_ids(tmp_path):
     assert not paths.catalog_tmp_dir(tmp_path, CID).is_relative_to(paths.tmp_root(tmp_path))
 
 
-def test_remove_catalog_files_takes_both_dirs_only(tmp_path):
+async def test_remove_catalog_files_takes_both_dirs_only(tmp_path):
+    from app.storage.local import LocalStore
+
     keep = paths.item_dir(tmp_path, 7, CID)
     keep.mkdir(parents=True)
     for d in (paths.catalog_dir(tmp_path, CID), paths.catalog_tmp_dir(tmp_path, CID)):
         d.mkdir(parents=True)
         (d / "x").write_bytes(b"1")
-    paths.remove_catalog_files(tmp_path, CID)
+    await paths.remove_catalog_files(LocalStore(tmp_path), tmp_path, CID)
     assert not paths.catalog_dir(tmp_path, CID).exists() and not paths.catalog_tmp_dir(tmp_path, CID).exists()
     assert keep.is_dir()
 

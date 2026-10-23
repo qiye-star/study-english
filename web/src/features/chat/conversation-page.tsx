@@ -22,6 +22,7 @@ import { useAuth } from "~/auth/auth-context";
 import { AgentNote, ProcessCapsule, SourceChips, TutorBarSlot, TutorEntry, runAgentTurn, withNote, type AgentTrace, type Persona, type TurnMeta, type TutorStartInfo } from "~/features/agents";
 import { savePracticeItem, useShadowSheet } from "~/features/practice";
 import { fetchRealtimeConfig, type RealtimeConfig, type CallEnding, type RealtimeEnv, RealtimeCallDialog, prepareCallAudio } from "~/features/realtime";
+import { collectPromptHints } from "~/lib/extension-points";
 import { WordActions } from "~/lib/extension-points-react";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
 import {
@@ -32,7 +33,8 @@ import { claimAudio, releaseAudio } from "~/audio/audio-focus";
 import { formatClock } from "~/lib/format-clock";
 import { coachCandidates, coachNote } from "./coach";
 import { readComposerMode, writeComposerMode, type ComposerMode } from "./composer-mode";
-import { HISTORY_LIMIT, buildChatMessages, chatOptions, displayName, effectiveSystemPrompt, titleFrom, withConfigDefaults } from "./chat-request";
+import { HISTORY_LIMIT, buildChatMessages, capRealtimePrompt, chatOptions, displayName, effectiveSystemPrompt, titleFrom, withConfigDefaults, withPromptHint } from "./chat-request";
+import { resolveTtsVoice, type TtsVoiceChoice } from "~/settings/tts-voice-pref";
 import { dropFailedTails, lastAssistantText } from "./chat-turns";
 import { GrammarDetails } from "./grammar-details";
 import { HintsSheet, hintKey } from "./hints-sheet";
@@ -186,6 +188,13 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
   speakOpeningRef.current = typeof routeOpening === "string" && routeOpening ? routeOpening : null;
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const { api } = useAuth();
+  // 对话提示词补充(计划 L4 Task 16):进入页面时取一次,之后的回合与通话都用这一份;没有登记或取不到就是 null,提示词逐字不变
+  const promptHintRef = useRef<string | null>(null);
+  useEffect(() => {
+    void collectPromptHints(api).then((blocks) => {
+      promptHintRef.current = blocks.length > 0 ? blocks.join("\n\n") : null;
+    });
+  }, [api]);
   const { t } = useTranslation();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [ai, setAi] = useState<ServerAiConfig | null>(null);
@@ -248,6 +257,8 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
   idRef.current = id;
   // 自动朗读在异步回调里读取最新配置与录音状态(R4)
   const configRef = useRef<ConversationConfig | null>(null);
+  /** 朗读(message 场景)实际用的音色,自动朗读在异步回调里读它 */
+  const speakVoiceRef = useRef<TtsVoiceChoice>({ model: "", voice: "" });
   const voiceStateRef = useRef<VoiceTurnState>("idle");
   // 契约:prime/stop/play/playQueue 来自同一个、本页唯一驱动 sharedAutoplayAudio() 的播放器 tts。
   // 流被中止而不调用 complete 的路径(切换会话/卸载)由加载 effect 的清理先 stopTts(),开着的句子队列不会悬空
@@ -258,13 +269,13 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
   const autoSpeak = useAutoSpeak({
     isEnabled: () => !callActiveRef.current && (autoSpeakOverrideRef.current ?? chatOptions(conversationRef.current?.config).autoSpeak),
     voiceIdle: () => voiceStateRef.current === "idle",
-    hasVoice: () => !!configRef.current?.ttsModel,
+    hasVoice: () => !!speakVoiceRef.current.model,
     prime: tts.prime,
     stop: tts.stop,
-    speak: (key, text, onError) => tts.play(key, text, configRef.current?.ttsModel ?? "", configRef.current?.ttsVoice ?? "", { onError, quietIfEmpty: true }),
+    speak: (key, text, onError) => tts.play(key, text, speakVoiceRef.current.model, speakVoiceRef.current.voice, { onError, quietIfEmpty: true }),
     onError: (err) => toast.error(ttsErrorMessage(tRef.current, err)),
     // R8:按句流水线朗读,与 prime/stop/play 同一个 tts 实例
-    speakQueue: (key, onError) => tts.playQueue(key, configRef.current?.ttsModel ?? "", configRef.current?.ttsVoice ?? "", { onError }),
+    speakQueue: (key, onError) => tts.playQueue(key, speakVoiceRef.current.model, speakVoiceRef.current.voice, { onError }),
   });
   const resetAutoSpeak = autoSpeak.reset;
   const { begin: autoSpeakBegin, complete: autoSpeakComplete, progress: autoSpeakProgress } = autoSpeak;
@@ -496,6 +507,9 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
 
   const config: ConversationConfig = withConfigDefaults(conversation?.config, ai);
   configRef.current = config;
+  // 朗读音色(message 场景):会话里显式选过音色(角色或会话设置)时用会话的;否则用 /me/voice 的「消息」场景。通话音色另算(callVoice)
+  const speakVoice: TtsVoiceChoice = conversation?.config?.ttsVoice ? { model: config.ttsModel, voice: config.ttsVoice } : resolveTtsVoice("message", ai);
+  speakVoiceRef.current = speakVoice;
   const speakOpening = autoSpeak.speakOpening;
   // 等会话与服务端音色默认值都就绪(R2:新会话不存音色)再读开场白;经过 R4 的全部判断
   useEffect(() => {
@@ -743,7 +757,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
         trace = withNote(result.trace, result.noteZh);
       } else {
         reply = await streamChatCompletion(api,
-          { messages: buildChatMessages(config, history, content, HISTORY_LIMIT, coach), model: config.model, temperature: config.temperature },
+          { messages: buildChatMessages(config, history, content, HISTORY_LIMIT, withPromptHint(coach ?? "", promptHintRef.current) || null), model: config.model, temperature: config.temperature },
           onDelta, controller.signal);
       }
       if (!reply.trim()) throw new ApiError(502, "Empty AI response");
@@ -1281,7 +1295,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
               actions={
                 <BubbleActions>
                   <BubbleAction data-testid="message-tts" data-state={speakState} disabled={voiceBusy} on={speakState === "playing"}
-                    onClick={() => void tts.play(m.key, m.content, config.ttsModel, config.ttsVoice)}>
+                    onClick={() => void tts.play(m.key, m.content, speakVoice.model, speakVoice.voice)}>
                     {speakState === "loading" ? <LoaderIcon aria-hidden className="animate-spin" />
                       : speakState === "playing" ? <SquareIcon aria-hidden /> : <Volume2Icon aria-hidden />}
                     {speakState === "playing" ? t("web.chat.stopSpeaking") : t("web.chat.bubble.listen")}
@@ -1336,7 +1350,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
         {tutor && conversation && (
           <TutorBarSlot sessionId={tutor.sessionId} meta={tutor.meta} busy={sending} onContinue={continueTutor} onEnd={endTutor}
             lastReply={lastAssistantText(messages)}
-            onSpeak={(text) => void tts.play(`tutor-${tutor.sessionId}`, text, config.ttsModel, config.ttsVoice)}
+            onSpeak={(text) => void tts.play(`tutor-${tutor.sessionId}`, text, speakVoice.model, speakVoice.voice)}
             onTranslateLast={() => {
               const last = [...messages].reverse().find((m) => m.role === "assistant" && m.status === "done");
               if (last && canTranslate) translations.toggle(last.key, last.content);
@@ -1419,7 +1433,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
       <SentencePracticeSheet text={practiceText} onClose={() => setPracticeText(null)} />
       <HintsSheet open={hintsOpen} onOpenChange={setHintsOpen} state={hints.state} onRetry={hints.retry}
         onFill={(text) => { setInput(text); setHintsOpen(false); switchComposer("text"); }}
-        onSpeak={(i, text) => void tts.play(hintKey(i), text, config.ttsModel, config.ttsVoice)}
+        onSpeak={(i, text) => void tts.play(hintKey(i), text, speakVoice.model, speakVoice.voice)}
         speakStates={tts.states}
         onPractice={(text) => { setHintsOpen(false); openShadow({ text, source: "chat" }); }}
         onSave={(text) => void savePracticeItem(api, t, text, "chat")} />
@@ -1428,7 +1442,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
         stored={readStoredRecap(conversation?.config.recap)} level={options.level}
         scenarioId={normalizeScenario(conversation?.config.scenario)?.id ?? null}
         onSave={(recap) => saveSettings({ recap })}
-        onSpeak={(key, text) => void tts.play(key, text, config.ttsModel, config.ttsVoice)}
+        onSpeak={(key, text) => void tts.play(key, text, speakVoice.model, speakVoice.voice)}
         speakStates={tts.states}
         extraActions={{
           expression: (text, zh) => <WordActions testId="recap-expression-vocab" label={`${t("web.vocabulary.add")}: ${text}`} variant="icon" target={{ word: text, meaning: zh, source: "recap" }} />,
@@ -1439,7 +1453,7 @@ export function ConversationPage({ recorderEnv, realtimeEnv, conversationId, chr
       {call && conversation && realtimeConfig && (
         <RealtimeCallDialog api={api} conversationId={conversation.id} nativeLanguage={canTranslate ? native : undefined} context={call.context} ownsContext={false} partnerName={callPartnerName(config, ai, call.voice)}
           sampleRateOut={realtimeConfig.sampleRateOut} env={realtimeEnv}
-          start={{ systemPrompt: effectiveSystemPrompt(config), model: config.model, temperature: config.temperature, voice: call.voice, saveRecordings: true }}
+          start={{ systemPrompt: capRealtimePrompt(withPromptHint(effectiveSystemPrompt(config), promptHintRef.current)), model: config.model, temperature: config.temperature, voice: call.voice, saveRecordings: true }}
           onUserMessage={onCallUserMessage} onClose={closeCall} />
       )}
     </div>

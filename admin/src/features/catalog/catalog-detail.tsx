@@ -5,11 +5,12 @@ import { RoleGate } from "../../components/role-gate";
 import { ErrorState, Skeleton } from "../../components/states";
 import { errorText as apiErrorText, useAsync } from "../../hooks/use-async";
 import {
-  ACTIVE, cancel, deleteItem, deletePhrase, fetchCatalogItem, mediaUrl, patchMeta, patchSegment, posterUrl, publish,
+  ACTIVE, cancel, deleteItem, deletePhrase, exportBundle, fetchCatalogItem, mediaUrl, patchMeta, patchSegment, posterUrl, publish,
   purgeItem, purgePhrase, retry, translateMissing, unpublish, type CatalogRow, type CatalogSegment,
 } from "./api";
 import { levelLong } from "../../lib/levels";
 import { ReplaceMedia } from "./replace-media";
+import { RoleLabels } from "./role-labels";
 import { S, errorText } from "./strings";
 
 const clock = (ms: number) => {
@@ -163,6 +164,7 @@ export function CatalogDetail({ id, onClose, onChanged }: { id: string; onClose:
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"delete" | "purge" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   const refresh = () => {
     setSegments({});
@@ -228,6 +230,13 @@ export function CatalogDetail({ id, onClose, onChanged }: { id: string; onClose:
                 {item.status === "ready" && !item.published && !item.retired && item.segCount > 0 && !item.mediaMissing && (
                   <ReplaceMedia id={id} disabled={busy} onDone={refresh} onError={(e) => setError(errorText(apiErrorText(e)))} />
                 )}
+                {item.status === "ready" && !item.retired && item.segCount > 0 && !item.mediaMissing && (
+                  <button type="button" className="btn-ghost btn-sm" disabled={busy}
+                    onClick={() => run(async () => { const r = await exportBundle(id); setNote(S.detail.bundleExported(r.segments)); })}>
+                    {S.detail.exportBundle}
+                  </button>
+                )}
+                {note && <span className="text-xs text-fg-2">{note}</span>}
                 {item.published && <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => run(() => unpublish(id))}>{S.detail.unpublish}</button>}
                 {!item.published && item.status === "ready" && !item.retired && !item.mediaMissing && (
                   <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={() => run(() => publish(id))}>{S.detail.publish}</button>
@@ -252,6 +261,9 @@ export function CatalogDetail({ id, onClose, onChanged }: { id: string; onClose:
                 ))}
               </ul>
             </section>
+            {item.status === "ready" && item.segCount > 0 && (
+              <RoleLabels id={id} lines={data.data!.segments.map((s) => segments[s.idx] ?? s)} onError={setError} />
+            )}
           </>
         )}
       </Dialog>

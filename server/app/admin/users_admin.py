@@ -4,8 +4,8 @@
 在线连接(房间 WebSocket、一次性票据)由调用方(routers/admin_users.py)断开:admin 不导入 routers。
 """
 import asyncio
+import logging
 import secrets
-import shutil
 from datetime import datetime, timezone
 
 from sqlalchemy import delete, select, update
@@ -15,19 +15,24 @@ from app.admin.audit import Actor
 from app.core.quotas import QUOTA_KEYS
 from app.core.security import hash_password
 from app.models import (
-    AccessToken, Assessment, Conversation, DailyUsage, Message, PracticeItem, PromotionMatch, RankProfile,
+    AccessToken, Assessment, Conversation, DailyUsage, LibraryDub, Message, PracticeItem, PromotionMatch, RankProfile,
     RankProfileSnapshot, Room, RoomJoinRequest, RoomMember, RoomReport, SpeechToken, UpstreamCall, UsageDaily, User,
-    UserAchievement, UserQuotaOverride, VocabularyItem, XpEvent, iso_utc,
+    UserAchievement, UserIdentity, UserQuotaOverride, VocabularyItem, XpEvent, iso_utc,
     LinkCredit, LinkMistakeWord, LinkWeakWord, LinkWordUse, UserLinkPref,
     WordbookEnrollment, WordbookEvent, WordbookReport,
     AgentPersona, AgentPersonaReport, AgentUserSettings,
     AgentMemoryItem, AgentMemoryTombstone, AgentProfile, AgentRecap, AgentThreadState,
     AgentTutorSession, ChatGreeting, ChatPrefs,
     LibraryAttempt, LibraryItem, LibrarySegment,
-    ChangelogRead,
+    SegmentLemma, WordUsage,  # L4 (plan 2026-10-21-l4 R2 / R10)
+    ChangelogRead, VerificationCode, AvatarReport,
+    InviteCode, InviteRedemption,
 )
 from app.library import paths as library_paths
-from app.services import recordings
+from app.services import avatars, recordings
+
+logger = logging.getLogger(__name__)
+from app.services.identities import EMAIL_PROVIDER
 
 TEMP_PASSWORD_LEN = 16
 # Letters and digits without look-alikes (0/O/o, 1/l/I), so a password read out over the phone survives.
@@ -40,7 +45,7 @@ _ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items includes source "wordbook:<book>")
     (ChatGreeting, "user_id"), (ChatPrefs, "user_id"),  # greetings reference conversations: delete them first (plan 2026-10-23)
     (Conversation, "user_id"), (Assessment, "user_id"), (PracticeItem, "user_id"), (VocabularyItem, "user_id"),
-    (AccessToken, "user_id"), (SpeechToken, "user_id"), (RankProfile, "user_id"), (XpEvent, "user_id"),
+    (AccessToken, "user_id"), (SpeechToken, "user_id"), (UserIdentity, "user_id"), (VerificationCode, "user_id"), (RankProfile, "user_id"), (XpEvent, "user_id"),
     (PromotionMatch, "user_id"), (UserAchievement, "user_id"), (UserQuotaOverride, "user_id"),
     (RoomMember, "user_id"), (RoomReport, "reporter_id"), (RoomJoinRequest, "user_id"),
     (WordbookEnrollment, "user_id"), (WordbookEvent, "user_id"),
@@ -49,12 +54,16 @@ USER_ROWS = (  # ON DELETE CASCADE: deleted with the user (vocabulary_items incl
     (AgentPersona, "owner_id"), (AgentUserSettings, "user_id"), (AgentPersonaReport, "reporter_id"),
     (AgentMemoryItem, "user_id"), (AgentProfile, "user_id"), (AgentThreadState, "user_id"), (AgentRecap, "user_id"),
     (AgentMemoryTombstone, "user_id"), (AgentTutorSession, "user_id"),
-    (LibraryAttempt, "user_id"), (LibraryItem, "user_id"),  # segments go first, by item (no user_id column)
+    (LibraryAttempt, "user_id"), (LibraryDub, "user_id"), (LibraryItem, "user_id"),  # segments go first, by item (no user_id column)
     (ChangelogRead, "user_id"),  # per-user changelog read position (plan 2026-10-14-changelog R-20)
+    (AvatarReport, "reporter_id"), (AvatarReport, "avatar_user_id"),  # avatar reports, both roles (plan avatar R-V10)
+    (WordUsage, "user_id"),  # vocabulary activation counters (plan L4 R2)
 )
 USER_REFS_NULLED = (  # ON DELETE SET NULL: the row stays without the user's id
     (Room, "owner_id"),  # via _release_rooms (ownership moves to another member first)
     (WordbookReport, "user_id"),  # a content report stays for moderation
+    (InviteCode, "owner_user_id"),  # a user's invite code outlives them only as a revoked row (delete_user revokes it first)
+    (InviteRedemption, "user_id"),  # who invited whom stays; the invitee is gone (invites v2 R-I11)
 )
 
 
@@ -165,13 +174,14 @@ async def _anonymise_metering(session, user_id: int) -> None:
     await session.flush()
 
 
-async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_username: str, reason: str,
+async def delete_user(session, actor: Actor, settings, user_id: int, *, store, confirm_username: str, reason: str,
                       now: datetime) -> dict:
     """Deletes the user and everything they own (explicit deletes: SQLite does not enforce FK cascades),
     then their recordings directory. Room messages they sent in other rooms stay (R-6)."""
     user = await _user(session, user_id)
     if confirm_username.strip().lower() != user.username:
         raise UserAdminError(409, "Confirmation required")
+    avatar_id = user.avatar_id  # read before the commit expires the row; the file goes after it (R-V10)
     recording_bytes = await recordings.used_bytes(session, user_id)
     closed, transferred, orphaned = await _release_rooms(session, user_id, now)
     conversations = select(Conversation.id).where(Conversation.user_id == user_id)
@@ -185,6 +195,17 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
     library_items = list((await session.scalars(select(LibraryItem.id).where(LibraryItem.user_id == user_id))).all())
     await session.execute(delete(LibrarySegment).where(LibrarySegment.item_id.in_(
         select(LibraryItem.id).where(LibraryItem.user_id == user_id))))
+    await session.execute(delete(SegmentLemma).where(SegmentLemma.scope == "lib", SegmentLemma.owner_id.in_(  # L4 R10
+        select(LibraryItem.id).where(LibraryItem.user_id == user_id))))
+    # codes are found by their target: a hidden "already registered" row has no user_id. Before the identity goes.
+    await session.execute(delete(VerificationCode).where(
+        VerificationCode.channel == "email",
+        VerificationCode.target_hmac.in_(select(UserIdentity.subject_hmac).where(
+            UserIdentity.user_id == user_id, UserIdentity.provider == EMAIL_PROVIDER))))
+    # invites v2 (R-I11): the permanent user code stops working and its plain copy is wiped before the owner goes
+    await session.execute(update(InviteCode).where(InviteCode.owner_user_id == user_id,
+                                                   InviteCode.revoked_at.is_(None)).values(revoked_at=now))
+    await session.execute(update(InviteCode).where(InviteCode.owner_user_id == user_id).values(code_enc=None))
     for model, column in USER_ROWS:
         await session.execute(delete(model).where(getattr(model, column) == user_id))
     for model, column in USER_REFS_NULLED:
@@ -199,8 +220,9 @@ async def delete_user(session, actor: Actor, settings, user_id: int, *, confirm_
                               "rooms_transferred": transferred, "rooms_orphaned": orphaned},
                        reason=reason)
     await session.commit()
-    _remove_recordings(settings, user_id)
-    library_paths.remove_user_files(settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
+    await _remove_recordings(store, user_id)
+    await library_paths.remove_user_files(store, settings.resolved_data_dir, user_id, library_items)  # media, posters, staging
+    await avatars.remove(store, avatar_id)  # the avatar object; after the commit, never raises (R-V10)
     return {"deleted": user_id, "recordings_bytes": recording_bytes, "closed_rooms": closed}
 
 
@@ -267,10 +289,10 @@ def _utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def _remove_recordings(settings, user_id: int) -> None:
+async def _remove_recordings(blobs, user_id: int) -> None:
+    """The user's assessment recordings, by prefix, after the commit. A failure is logged by class and never raised
+    (plan L1 Task 15: the old local rmtree raised after the commit; the store path does not)."""
     try:
-        path = recordings.absolute_path(settings.resolved_data_dir, f"recordings/{user_id}")
-    except ValueError:
-        return
-    if path.is_dir():
-        shutil.rmtree(path, ignore_errors=False)
+        await blobs.delete_prefix(f"recordings/{user_id}/")
+    except Exception as exc:  # noqa: BLE001 - after commit
+        logger.warning("user recordings delete failed code=%s", getattr(exc, "code", type(exc).__name__))

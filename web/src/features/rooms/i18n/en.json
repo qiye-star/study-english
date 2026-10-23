@@ -119,6 +119,18 @@
         "closed_protocol": "Connection error, go back and enter the room again",
         "kickedClose": "You were removed from the room",
         "closed_admin": "An administrator closed the room"
+      },
+      "avatarReport": {
+        "action": "Report avatar",
+        "title": "Report {{name}}’s avatar",
+        "reasonLabel": "Reason",
+        "reasons": {
+          "inappropriate": "Inappropriate picture",
+          "impersonation": "Pretending to be someone",
+          "other": "Something else"
+        },
+        "submit": "Send report",
+        "sent": "Thanks. We’ve received your report and admins will review it."
       }
     }
   }

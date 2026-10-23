@@ -11,13 +11,16 @@
     agents     -> core, providers, speech, services (shared agent core: rooms, links, admin, routers and main import it;
                   never rank, rooms, realtime, wordbook, links, admin or routers)
     links      -> core, providers, speech, services, rank, rooms, wordbook, agents (top layer: only routers and main)
-    library    -> core, providers, speech, services (imported media library: only admin, routers and main import it)
+    library    -> core, providers, speech, services (imported media library: only admin, routers, main and dubbing import it)
+    dubbing    -> core, models, providers, speech, services, library (voice-over clips; only admin, routers and main import it)
+    activation -> core, models, providers, speech, services, wordbook, agents (vocabulary activation top layer; only routers and main)
     admin      -> core, providers, speech, services, realtime, rank, rooms, wordbook, agents, library (admin console logic)
     routers    -> anything below (and other routers)
     main       -> anything; nothing but main imports routers
                   (likewise only routers and main may import admin)
 
 `app.models` sits beside core: it may import core only, and every layer may import it.
+    storage    -> core, models             (bottom I/O layer; boto3 lives only in app/storage/s3.py and config.py)
 Lazy (function-level) imports count; so do `from app import x` and relative imports."""
 import ast
 from pathlib import Path
@@ -25,7 +28,7 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1] / "app"
 
 LAYERS = ("core", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "agents", "links",
-          "library", "admin", "routers")
+          "library", "dubbing", "activation", "admin", "routers", "storage")
 TOP_LEVEL = {"__init__", "main", "models"}
 
 ALLOWED: dict[str, set[str]] = {
@@ -33,20 +36,25 @@ ALLOWED: dict[str, set[str]] = {
     "models": {"core"},
     "providers": {"providers", "core"},
     "speech": {"speech", "core", "models", "providers"},
-    "services": {"services", "core", "models", "providers"},
-    "realtime": {"realtime", "core", "models", "providers", "speech", "services"},
+    "services": {"services", "core", "models", "providers", "storage"},
+    "realtime": {"realtime", "core", "models", "providers", "speech", "services", "storage"},
     "rank": {"rank", "core", "models", "providers", "speech", "services"},
-    "rooms": {"rooms", "core", "models", "providers", "speech", "services", "agents"},
+    "rooms": {"rooms", "core", "models", "providers", "speech", "services", "agents", "storage"},
     "wordbook": {"wordbook", "core", "models", "providers", "speech", "services"},
     "agents": {"agents", "core", "models", "providers", "speech", "services"},
     "links": {"links", "core", "models", "providers", "speech", "services", "rank", "rooms", "wordbook", "agents"},
-    "library": {"library", "core", "models", "providers", "speech", "services"},
+    "library": {"library", "core", "models", "providers", "speech", "services", "storage"},
+    "dubbing": {"dubbing", "core", "models", "providers", "speech", "services", "library"},
+    # top layer beside links (L4 R1): reads wordbook / agents / services through their public modules, never links,
+    # library, rooms, realtime or rank (their data arrives as events or through app.models)
+    "activation": {"activation", "core", "models", "providers", "speech", "services", "wordbook", "agents"},
     "admin": {"admin", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-              "agents", "library"},
+              "agents", "library", "dubbing", "storage"},
     "routers": {"routers", "core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook",
-                "admin", "links", "agents", "library"},
+                "admin", "links", "agents", "library", "dubbing", "activation", "storage"},
     "main": {"core", "models", "providers", "speech", "services", "realtime", "rank", "rooms", "wordbook", "admin",
-             "routers", "links", "agents", "library"},
+             "routers", "links", "agents", "library", "dubbing", "activation", "storage"},
+    "storage": {"storage", "core", "models"},
     "__init__": set(),
 }
 FORBIDDEN_THIRD_PARTY = {"providers": ("fastapi", "starlette")}
@@ -115,7 +123,10 @@ def test_layering_rules_hold():
     assert violations() == []
 
 
-STDLIB_ONLY = ("core/learning_events.py", "core/rank_sources.py")  # neutral core modules of the learning-links spec (§4, §5.1)
+STDLIB_ONLY = (
+    "core/learning_events.py", "core/rank_sources.py",  # neutral core modules of the learning-links spec (§4, §5.1)
+    "core/captcha_policy.py",  # spec 2026-10-20-captcha-altcha R-C10
+)
 
 
 def test_neutral_core_modules_use_the_standard_library_only():
@@ -213,6 +224,39 @@ def test_links_is_a_top_layer(tmp_path):
     assert not any(p.startswith(("app/links/ok.py", "app/routers/ok.py")) for p in found)
 
 
+def test_activation_is_a_top_layer(tmp_path):
+    """L4 R1: activation is a top layer beside links. Only routers and main import it; it never imports links,
+    library, rooms, realtime or rank (their data reaches it through events or app.models)."""
+    app = tmp_path / "app"
+    for pkg in ("activation", "links", "library", "rooms", "realtime", "rank", "wordbook", "agents", "routers", "core",
+                "services"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "links" / "a.py").write_text("from app.activation import usage\n", encoding="utf-8")
+    (app / "wordbook" / "b.py").write_text("from app.activation import words\n", encoding="utf-8")
+    (app / "agents" / "c.py").write_text("def f():\n    from app.activation import agent_source\n", encoding="utf-8")
+    (app / "library" / "d.py").write_text("from app import activation\n", encoding="utf-8")
+    (app / "services" / "e.py").write_text("import app.activation.states\n", encoding="utf-8")
+    (app / "activation" / "f.py").write_text("from app.links import gate\n", encoding="utf-8")
+    (app / "activation" / "g.py").write_text("from app.library import store\n", encoding="utf-8")
+    (app / "activation" / "h.py").write_text("from app.rooms import voice\n", encoding="utf-8")
+    (app / "activation" / "i.py").write_text("from app.realtime import x\n", encoding="utf-8")
+    (app / "activation" / "j.py").write_text("from app.rank import points\n", encoding="utf-8")
+    (app / "activation" / "ok.py").write_text("from app.wordbook import store, examples\n"
+                                              "from app.agents.context import SourceResult\n"
+                                              "from app.core import learning_events\n"
+                                              "from app.models import WordUsage\n"
+                                              "from app.services import srs_fsrs\n", encoding="utf-8")
+    (app / "routers" / "ok.py").write_text("from app.activation import setup\n", encoding="utf-8")
+    found = violations(app)
+    for bad in ("app/links/a.py:1", "app/wordbook/b.py:1", "app/agents/c.py:2", "app/library/d.py:1",
+                "app/services/e.py:1", "app/activation/f.py:1", "app/activation/g.py:1", "app/activation/h.py:1",
+                "app/activation/i.py:1", "app/activation/j.py:1"):
+        assert any(p.startswith(bad) for p in found), bad
+    assert not any(p.startswith(("app/activation/ok.py", "app/routers/ok.py")) for p in found), found
+
+
 def test_agents_layer_rules(tmp_path):
     """spec 2026-10-12-agents §3.3: agents imports only core/models/providers/speech/services; rooms, links, admin,
     routers and main may import agents; rank, realtime, wordbook, services and core may not."""
@@ -251,6 +295,136 @@ def test_agents_layer_rules(tmp_path):
     for rel, (_, line) in bad.items():
         assert any(p.startswith(f"app/{rel}:{line}") for p in found), rel
     assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
+
+
+STORAGE_LAYER_IMPORTERS = ("services", "realtime", "rooms", "library", "admin", "routers", "main")
+BOTO_MODULES = {"boto3", "botocore", "s3transfer"}
+BOTO_ALLOWED = ("app/storage/s3.py", "app/storage/config.py")  # R1: the only files that may touch the vendor SDK
+
+# Shrinking allowlists (plan R16). A migration batch removes its own entries; growing one needs a plan change.
+FILE_RESPONSE_ALLOWED = (
+    "app/routers/admin_ops.py", "app/routers/web.py",
+)
+DATA_DIR_ALLOWED = (  # plan L1 Task 18: what is left is local staging (R7), the data volume's disk usage, and config
+    "app/admin/catalog_admin.py",  # catalog upload staging on local disk
+    "app/admin/system.py",  # disk usage of the data volume
+    "app/admin/users_admin.py",  # local staging of a deleted user's items
+    "app/core/config.py", "app/core/settings_registry.py",
+    "app/library/catalog_import.py", "app/library/catalog_jobs.py", "app/library/catalog_store.py",
+    "app/library/paths.py", "app/library/pipeline.py", "app/library/store.py", "app/library/worker.py",
+    "app/routers/library.py",  # chunked upload staging on local disk
+    # wordbook dictionaries use their own directory (WORDBOOK_DATA_DIR), not the object store: not migrated by L1
+    "app/admin/wordbook_admin.py", "app/wordbook/index.py", "app/wordbook/lookup.py", "app/wordbook/service.py",
+)
+
+
+def _files_importing(root: Path, names: tuple[str, ...]) -> set[str]:
+    hits: set[str] = set()
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for _, target in imported_modules(tree, module_name(path, root), path.name == "__init__.py"):
+            if target.split(".")[0] in names:
+                hits.add(path.relative_to(root.parent).as_posix())
+    return hits
+
+
+def _files_mentioning(root: Path, word: str) -> set[str]:
+    """Modules outside app/storage that mention `word`: the storage layer itself owns the local root and FileResponse."""
+    import re
+    pattern = re.compile(rf"\b{word}\b")
+    hits = set()
+    for path in root.rglob("*.py"):
+        rel = path.relative_to(root.parent).as_posix()
+        if rel.startswith("app/storage/"):
+            continue
+        if pattern.search(path.read_text(encoding="utf-8")):
+            hits.add(rel)
+    return hits
+
+
+def test_storage_layer_rules(tmp_path):
+    """plan L1 R1: only services, realtime, rooms, library, admin, routers and main may import storage."""
+    app = tmp_path / "app"
+    for pkg in ("storage", "core", "models", "providers", "speech", "wordbook", "agents", "links", "rank", "services",
+                "library", "routers"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    bad = {
+        "core/a.py": "from app.storage import BlobStore\n",
+        "providers/b.py": "from app.storage.base import BlobStore\n",
+        "speech/c.py": "from app.storage import keys\n",
+        "wordbook/d.py": "from app.storage import keys\n",
+        "agents/e.py": "from app.storage import keys\n",
+        "links/f.py": "from app.storage import keys\n",
+        "rank/g.py": "def f():\n    from app.storage import keys\n",
+        "models/h.py": "from app.storage import keys\n",
+    }
+    ok = {
+        "services/ok.py": "from app.storage import BlobStore\n",
+        "library/ok.py": "from app.storage.keys import check_key\n",
+        "routers/ok.py": "from app.storage import get_store\n",
+        "storage/ok.py": "from app.core import config\nfrom app.models import User\n",
+    }
+    for rel, src in {**bad, **ok}.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    found = violations(app)
+    for rel in bad:
+        assert any(p.startswith(f"app/{rel}:") for p in found), rel
+    assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
+
+
+def test_boto3_is_imported_only_inside_the_storage_layer():
+    """plan L1 R1: boto3 / botocore / s3transfer only in app/storage/s3.py and app/storage/config.py; moto never in app/."""
+    hits = _files_importing(APP, tuple(BOTO_MODULES))
+    assert hits <= set(BOTO_ALLOWED), sorted(hits - set(BOTO_ALLOWED))
+    assert _files_importing(APP, ("moto",)) == set()
+
+
+def test_file_response_is_only_used_by_allowed_routers():
+    actual = {p for p in _files_mentioning(APP, "FileResponse")}
+    assert actual <= set(FILE_RESPONSE_ALLOWED), sorted(actual - set(FILE_RESPONSE_ALLOWED))
+
+
+def test_data_dir_is_only_read_by_allowed_modules():
+    actual = _files_mentioning(APP, "data_dir") | _files_mentioning(APP, "resolved_data_dir")
+    assert actual <= set(DATA_DIR_ALLOWED), sorted(actual - set(DATA_DIR_ALLOWED))
+
+
+def path_of_callers_outside_storage(root: Path = APP) -> list[str]:
+    """`<store>.path_of(...)` calls outside app/storage (plan L1 Task 18). The receiver must look like a store (or
+    storage), so `backups.path_of(settings, name)`, a different function, is not flagged."""
+    hits: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root.parent).as_posix()
+        if rel.startswith("app/storage/"):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "path_of" and "stor" in ast.unparse(node.func.value).lower()):
+                hits.append(f"{rel}:{node.lineno}")
+    return hits
+
+
+def test_local_path_of_is_only_called_inside_the_storage_layer():
+    """plan L1 Task 18: LocalStore.path_of hands out a local path; only app/storage may use it."""
+    assert path_of_callers_outside_storage() == []
+
+
+def test_path_of_scanner_catches_a_store_call_and_ignores_other_path_of(tmp_path):
+    app = tmp_path / "app"
+    for pkg in ("routers", "storage"):
+        (app / pkg).mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "routers" / "bad.py").write_text(
+        "def f(request, key):\n    return request.app.state.storage.path_of(key)\n", encoding="utf-8")
+    (app / "routers" / "ok.py").write_text(
+        "from app.admin import backups\n\ndef f(settings, name):\n    return backups.path_of(settings, name)\n",
+        encoding="utf-8")
+    (app / "storage" / "inside.py").write_text("def f(store, key):\n    return store.path_of(key)\n", encoding="utf-8")
+    found = path_of_callers_outside_storage(app)
+    assert found == ["app/routers/bad.py:2"]
 
 
 AGENTS_MEMORY_MAY_IMPORT = ("app.agents.memory", "app.agents.context", "app.agents.settings")
@@ -318,6 +492,100 @@ def test_tutor_core_modules_are_pure():
             ok = top in sys.stdlib_module_names or (
                 target.startswith("app.agents.tutor.") and target not in TUTOR_STATEFUL)
             assert ok, f"app/{rel}:{lineno} imports {target}"
+
+
+# ---- L3 FSRS (plan 2026-10-21-l3-fsrs, R1/R13): one adapter imports the `fsrs` package; the SRS modules never log ----
+FSRS_IMPORTER = "app.services.srs_fsrs"
+SRS_MODULES = ("services/scheduling.py", "services/srs_fsrs.py", "services/srs_replay.py")
+
+
+def fsrs_violations(root: Path = APP) -> list[str]:
+    problems: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        current = module_name(path, root)
+        if current == FSRS_IMPORTER:
+            continue
+        where = path.relative_to(root.parent).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for lineno, target in imported_modules(tree, current, path.name == "__init__.py"):
+            if target.split(".")[0] == "fsrs":
+                problems.append(f"{where}:{lineno}: only {FSRS_IMPORTER} may import fsrs")
+    return problems
+
+
+def logging_violations(root: Path = APP, rels: tuple[str, ...] = SRS_MODULES) -> list[str]:
+    """Files that do not exist yet are skipped; each SRS module is checked as soon as it is created."""
+    problems: list[str] = []
+    for rel in rels:
+        path = root / rel
+        if not path.exists():
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for lineno, target in imported_modules(tree, module_name(path, root), False):
+            if target.split(".")[0] == "logging":
+                problems.append(f"app/{rel}:{lineno}: SRS modules must not log")
+    return problems
+
+
+def test_only_srs_fsrs_imports_fsrs():
+    assert fsrs_violations() == []
+
+
+def test_srs_modules_do_not_log():
+    assert logging_violations() == []
+
+
+def test_fsrs_scanner_catches_lazy_and_submodule_imports(tmp_path):
+    app = tmp_path / "app"
+    (app / "services").mkdir(parents=True)
+    (app / "wordbook").mkdir(parents=True)
+    for init in (app / "__init__.py", app / "services" / "__init__.py", app / "wordbook" / "__init__.py"):
+        init.write_text("", encoding="utf-8")
+    (app / "services" / "srs_fsrs.py").write_text("import fsrs\nfrom fsrs import Scheduler\n", encoding="utf-8")
+    (app / "services" / "vocabulary.py").write_text("def f():\n    from fsrs import Scheduler\n", encoding="utf-8")
+    (app / "wordbook" / "grading.py").write_text("import fsrs.card\n", encoding="utf-8")
+    found = fsrs_violations(app)
+    assert any(p.startswith("app/services/vocabulary.py:2") for p in found)
+    assert any(p.startswith("app/wordbook/grading.py:1") for p in found)
+    assert not any(p.startswith("app/services/srs_fsrs.py") for p in found)
+
+
+def test_logging_scanner_catches_an_srs_module(tmp_path):
+    app = tmp_path / "app"
+    (app / "services").mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "services" / "__init__.py").write_text("", encoding="utf-8")
+    (app / "services" / "scheduling.py").write_text("import logging\n", encoding="utf-8")
+    assert logging_violations(app) == ["app/services/scheduling.py:1: SRS modules must not log"]
+def test_dubbing_layer_rules(tmp_path):
+    """plan L5 R25: dubbing imports core, models, providers, speech, services and library only; only routers, admin and
+    main import it; library never imports dubbing (the role labels are the only shared thing, and they live in library)."""
+    app = tmp_path / "app"
+    for pkg in ("dubbing", "library", "admin", "routers", "links", "services", "core"):
+        (app / pkg).mkdir(parents=True)
+        (app / pkg / "__init__.py").write_text("", encoding="utf-8")
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    bad = {  # file -> (source, line of the bad import)
+        "dubbing/a.py": ("from app.routers import library\n", 1),
+        "dubbing/b.py": ("from app.admin import audit\n", 1),
+        "dubbing/c.py": ("from app.links import gate\n", 1),
+        "library/b.py": ("from app.dubbing import takes\n", 1),
+        "services/c.py": ("from app.dubbing import takes\n", 1),
+    }
+    ok = {
+        "dubbing/ok.py": "from app.library import store\nfrom app.services import usage\nfrom app.core import metering\n"
+                         "from app.models import LibraryDub\nfrom app.speech import sentence_split\n",
+        "routers/ok.py": "from app.dubbing import takes\n",
+        "admin/ok.py": "from app.dubbing import takes\n",
+    }
+    for rel, (src, _) in bad.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    for rel, src in ok.items():
+        (app / rel).write_text(src, encoding="utf-8")
+    found = violations(app)
+    for rel, (_, line) in bad.items():
+        assert any(p.startswith(f"app/{rel}:{line}") for p in found), rel
+    assert not any(p.startswith(tuple(f"app/{rel}" for rel in ok)) for p in found)
 
 
 def test_library_layer_rules(tmp_path):

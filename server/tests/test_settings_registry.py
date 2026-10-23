@@ -9,12 +9,20 @@ EXPECTED_ENV_ONLY = {
     "admin_ip_allowlist", "admin_cookie_secure", "trust_proxy_headers", "grammar_prompt_file", "build_sha",
     "wordbook_data_dir",  # spec 2026-10-10-wordbook §10
     "library_ytdlp_cookies_file", "library_ytdlp_proxy",  # spec 2026-10-13-video-import §5.2
+    "identity_pepper",  # accounts v2 (INDEX X9)
+    "captcha_secret",  # spec 2026-10-20-captcha-altcha §4
+    # object storage (plan 2026-10-21-l1-object-storage R9)
+    "storage_backend", "storage_fallback", "s3_endpoint", "s3_bucket", "s3_access_key", "s3_secret_key", "s3_region",
+    "s3_path_style", "s3_fallback_endpoint", "s3_fallback_bucket", "s3_fallback_access_key", "s3_fallback_secret_key",
+    "s3_fallback_region", "s3_fallback_path_style",
 }
 EXPECTED_SECRETS = {
     "database_url", "invite_code", "upstream_llm_key", "upstream_tts_key", "upstream_whisper_key", "upstream_grammar_key",
     "volcengine_tts_key", "volcengine_asr_key", "azure_speech_key", "xfyun_api_key", "xfyun_api_secret",
     "admin_password", "admin_session_secret", "admin_totp_secret", "settings_encryption_key",
-    "library_ytdlp_proxy",
+    "library_ytdlp_proxy", "identity_pepper", "smtp_password",
+    "captcha_secret",  # spec 2026-10-20-captcha-altcha §4
+    "s3_access_key", "s3_secret_key", "s3_fallback_access_key", "s3_fallback_secret_key",  # plan L1 R9
 }
 
 
@@ -120,3 +128,39 @@ def test_agents_danger_only_in_the_costly_direction():
     assert not danger_reasons("agents_enabled", True, False)
     assert danger_reasons("agents_turns_global_daily", 3000, 4000)
     assert not danger_reasons("agents_turns_global_daily", 3000, 100)
+
+
+def test_account_captcha_and_invite_settings_have_help_text():
+    # owner feedback: admins could not tell what these settings do; env-only secrets are documented by their label
+    prefixes = ("captcha_", "email_", "smtp_", "invite", "avatar_", "access_token", "identity_")
+    missing = sorted(k for k, s in SPECS.items()
+                     if k.startswith(prefixes) and not (s.secret and s.env_only) and not s.help_zh)
+    assert missing == []
+
+
+CHOICE_INFO_FULL = ("captcha_mode", "email_backend", "smtp_security", "email_domain_mode", "registration_mode",
+                    "maintenance_mode")
+
+
+def test_choice_info_keys_are_real_choices_with_text():
+    with_info = {k: s for k, s in SPECS.items() if s.choice_info}
+    assert set(CHOICE_INFO_FULL) <= set(with_info)
+    for key, spec in with_info.items():
+        assert set(spec.choice_info) <= set(choices_for(key)), key
+        assert all(label and help_text for label, help_text in spec.choice_info.values()), key
+
+
+def test_in_scope_enums_cover_all_their_choices():
+    for key in CHOICE_INFO_FULL:
+        assert set(SPECS[key].choice_info) == set(choices_for(key)), key
+
+
+def test_activation_switch_is_a_hot_feature_flag_default_off():
+    # L4 Task 2: ACTIVATION_ENABLED (spec 2026-10-21-object-storage-fsrs-dubbing-design §2.4, plan l4 R17)
+    s = Settings(_env_file=None)
+    assert s.activation_enabled is False
+    spec = SPECS["activation_enabled"]
+    assert (spec.group, spec.kind, spec.label_zh, spec.apply, spec.env_only, spec.secret) == (
+        "features", "bool", "词汇激活", "hot", False, False)
+    assert "沉睡词" in spec.help_zh and spec.danger
+    assert env_name("activation_enabled") == "ACTIVATION_ENABLED"

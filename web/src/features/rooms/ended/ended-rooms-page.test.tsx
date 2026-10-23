@@ -88,4 +88,33 @@ describe("RoomsEndedPage", () => {
     setup({ "GET /api/rooms/ended": () => json({ rooms: [], next_cursor: null }) });
     expect(await screen.findByText("还没有已结束的房间。")).toBeTruthy();
   });
+
+  // 计划 L6 R3/R7:对话分区里只放切换条,标题保持「已结束的房间」,返回键仍在。
+  it("keeps its own title and puts the switcher under the header when only a switcher is passed", async () => {
+    const mock = createFetchMock({ "GET /api/rooms/ended": () => json({ rooms: [], next_cursor: null }) });
+    renderWithProviders(<RoomsEndedPage embedded={{ switcher: <div data-testid="probe-switch" /> }} />, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/rooms/ended", path: "/rooms/ended",
+      user: { id: "11111111", name: "alice" },
+    });
+    const probe = await screen.findByTestId("probe-switch");
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("已结束的房间");
+    expect(heading.compareDocumentPosition(probe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("button", { name: "返回" })).toBeInTheDocument();
+  });
+});
+
+describe("the lazy shell forwards embedded (plan L6 R3)", () => {
+  beforeEach(() => localStorage.setItem("enjoy-web.settings", JSON.stringify({ language: "zh-CN" })));
+  afterEach(async () => { localStorage.removeItem("enjoy-web.settings"); await i18n.changeLanguage("en"); });
+
+  it("passes the switcher through the lazy RoomsEndedPage export", async () => {
+    const { RoomsEndedPage: LazyEndedPage } = await import("~/features/rooms");
+    const mock = createFetchMock({ "GET /api/rooms/ended": () => json({ rooms: [], next_cursor: null }) });
+    renderWithProviders(<LazyEndedPage embedded={{ switcher: <div data-testid="probe-switch" /> }} />, {
+      api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }), route: "/rooms/ended", path: "/rooms/ended",
+      user: { id: "11111111", name: "alice" },
+    });
+    expect(await screen.findByTestId("probe-switch")).toBeInTheDocument();
+  });
 });

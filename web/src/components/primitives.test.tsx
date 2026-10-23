@@ -38,6 +38,25 @@ describe("avatarInitial", () => {
     expect(el).toHaveTextContent("E");
     expect(el.className).toMatch(/\bh-24\b/);
   });
+
+  it("shows the image when src is given (decorative, lazy, no referrer) and falls back to the initial on load error", () => {
+    const src = "/api/avatars/00000000000000000000000000000000";
+    render(<Avatar name="Emma" src={src} />);
+    const img = document.querySelector("img");
+    expect(img).toHaveAttribute("src", src);
+    expect(img).toHaveAttribute("alt", "");
+    expect(img).toHaveAttribute("loading", "lazy");
+    expect(img).toHaveAttribute("referrerpolicy", "no-referrer");
+    fireEvent.error(img!);
+    expect(document.querySelector("img")).toBeNull();
+    expect(screen.getByRole("img", { name: "Emma" })).toHaveTextContent("E");
+  });
+
+  it("renders no image when src is null", () => {
+    render(<Avatar name="Emma" src={null} />);
+    expect(document.querySelector("img")).toBeNull();
+    expect(screen.getByRole("img", { name: "Emma" })).toHaveTextContent("E");
+  });
 });
 
 function ScrollProbe({ threshold }: { threshold?: number }) {

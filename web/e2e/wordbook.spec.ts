@@ -9,6 +9,7 @@ test.use({ locale: "zh-CN" }); // 断言用中文文案
 test("wordbook: pick a book -> learn 5 words -> spelling -> 我的 row", async ({ page, request }) => {
   const upstreams = await mockUpstreams(page);
   await signIn(page, request);
+  await page.goto("/practice");
 
   // 练习页大卡 → 选择词书 → 初中 → 开始
   const card = page.getByTestId("wordbook-card");

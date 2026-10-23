@@ -1,0 +1,52 @@
+{
+  "email_code": {
+    "ok": true,
+    "cooldown_seconds": 60
+  },
+  "register": {
+    "id": "10000001",
+    "name": "alice",
+    "created_at": "2026-01-01T00:00:00Z",
+    "access_token": "REDACTED",
+    "nickname": "Newbie",
+    "display_name": "Newbie"
+  },
+  "login": {
+    "id": "10000001",
+    "name": "alice",
+    "created_at": "2026-01-01T00:00:00Z",
+    "access_token": "REDACTED",
+    "nickname": "Newbie",
+    "display_name": "Newbie"
+  },
+  "me": {
+    "id": "10000001",
+    "name": "alice",
+    "created_at": "2026-01-01T00:00:00Z",
+    "nickname": "Newbie",
+    "display_name": "Newbie",
+    "email_masked": "a***@example.com",
+    "email_verified": true,
+    "email_binding": {
+      "state": "pending",
+      "deadline": "2026-12-01T00:00:00+08:00"
+    }
+  },
+  "me_unbound": {
+    "id": "10000001",
+    "name": "legacy",
+    "created_at": "2026-01-01T00:00:00Z",
+    "display_name": "legacy",
+    "email_verified": false,
+    "email_binding": {
+      "state": "enforced",
+      "deadline": null
+    }
+  },
+  "error_binding_required": {
+    "error": "email_binding_required"
+  },
+  "password_changed": {
+    "access_token": "REDACTED"
+  }
+}

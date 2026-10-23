@@ -1,7 +1,7 @@
 """chat home: daily default conversations, daily greetings, chat prefs (plan 2026-10-23-chat-home-daily-greeting §4)
 
-Revision ID: 0023
-Revises: 0022
+Revision ID: 0031
+Revises: 0030
 Create Date: 2026-10-23 12:00:00.000000
 
 conversations.daily_date (nullable) + UNIQUE(user_id, daily_date): NULLs never conflict on SQLite or Postgres, so
@@ -15,8 +15,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '0023'
-down_revision: Union[str, Sequence[str], None] = '0022'
+revision: str = '0031'
+down_revision: Union[str, Sequence[str], None] = '0030'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -126,9 +126,12 @@ async def create_item(session: AsyncSession, user_id: int, book_id: str, card: W
 
 
 async def add_event(session: AsyncSession, *, user_id: int, book_id: str, kind: str, word: str, item_id: str | None,
-                    qtype: str | None, outcome: str, credit: int, day: str, now: datetime) -> None:
+                    qtype: str | None, outcome: str, credit: int, day: str, now: datetime,
+                    reviewed_at: datetime | None = None) -> None:
+    """reviewed_at is set only when this event changed a card's schedule through the port (L3 R8)."""
     session.add(WordbookEvent(user_id=user_id, book_id=book_id, kind=kind, word=word[:100], item_id=item_id,
-                              qtype=qtype, outcome=outcome, credit=credit, day=day, created_at=now))
+                              qtype=qtype, outcome=outcome, credit=credit, day=day, created_at=now,
+                              reviewed_at=reviewed_at))
 
 
 def _today(user_id: int, book_id: str, day: str):
@@ -223,7 +226,8 @@ async def set_learn_box(session: AsyncSession, user_id: int, item_id: str, *, se
         .where(VocabularyItem.id == item_id, VocabularyItem.user_id == user_id, VocabularyItem.reps == 0,
                VocabularyItem.box == seen_box)
         .values(box=to_box, due_at=now + timedelta(days=INTERVAL_DAYS[to_box]),
-                lapses=VocabularyItem.lapses + (1 if to_box < seen_box else 0))
+                lapses=VocabularyItem.lapses + (1 if to_box < seen_box else 0),
+                stability=None, difficulty=None, fsrs_state=None, last_review=None)  # re-seeded from the box next time (R6)
         .execution_options(synchronize_session=False))
     return result.rowcount == 1
 

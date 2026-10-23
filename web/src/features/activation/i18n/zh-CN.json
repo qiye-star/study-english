@@ -1,0 +1,34 @@
+{
+  "web": {
+    "activation": {
+      "title": "沉睡词",
+      "meRow": "沉睡词",
+      "meRowCount": "学过 {{count}} 个，最近没用",
+      "segmentLabel": "词汇状态",
+      "state": {
+        "dormant": "沉睡",
+        "sprouting": "萌芽",
+        "active": "激活"
+      },
+      "hint": {
+        "dormant": "学过，但好一阵子没在对话里用过。",
+        "sprouting": "到目前为止用过一两次。",
+        "active": "在好几次对话里都用过。"
+      },
+      "usedTimes": "用过 {{count}} 次",
+      "neverUsed": "还没用过",
+      "lastUsed": "最近一次：{{date}}",
+      "more": "加载更多",
+      "loadFailed": "列表暂时读不出来，请稍后再试。",
+      "empty": {
+        "title": "这一组还没有词",
+        "body": "学过的词如果一阵子没用，会出现在这里。"
+      }
+    },
+    "agents": {
+      "step": {
+        "dormant_words": "沉睡词"
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@ export { AssessmentPage } from "./assessment-page";
 export { HistoryPage } from "./history-page";
 export { PracticeListPage } from "./practice-list-page";
 export { PracticePage } from "./practice-page";
+export { ShadowPage } from "./shadow-page";
 export {
   PRACTICE_SERVER_ERRORS,
   assessPronunciation,

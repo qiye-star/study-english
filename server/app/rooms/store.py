@@ -14,11 +14,12 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models import (
     RankProfile, Room, RoomJoinRequest, RoomMember, RoomMessage, RoomReaction, RoomReport, RoomSummary, RoomVoice, User,
-    iso_utc, new_uuid,
+    display_name, iso_utc, new_uuid,
 )
 from app.rooms.codes import generate_code
 from app.rooms.protocol import REACTION_KEYS
 from app.rooms.rules import CEFR_BY_TIER, MAX_TOPIC, NAME_MAX, SETTING_FIELDS, RoomLimits, clean_text, default_level
+from app.services.avatars import avatar_url
 from app.services.stats import as_utc
 
 CODE_ATTEMPTS = 5
@@ -41,6 +42,7 @@ class MemberView:
     user_id: int
     name: str
     role: str
+    avatar_id: str | None = None
 
 
 def _agent_meta(m: RoomMessage) -> dict | None:
@@ -64,15 +66,22 @@ def voice_out(v: RoomVoice) -> dict:
             "audio": v.audio_path is not None}
 
 
+def sender_avatar(m: RoomMessage) -> str | None:
+    """The sender's avatar id as read by `RoomStore._named` (a join on users, not a column, plan S8)."""
+    return getattr(m, "sender_avatar_id", None)
+
+
 def message_out(m: RoomMessage, name: str | None, *, voice: RoomVoice | None = None,
-                reactions: list[dict] | None = None) -> dict:
+                reactions: list[dict] | None = None, avatar_id: str | None = None) -> dict:
     """Member view (protocol v2 shape). A message hidden by an admin keeps its row (R-6) but its text, meta, quote,
     voice and reactions are withheld. `quote` is a promoted copy of `meta.quote`. Callers that need the voice and
     reaction attachments use `RoomStore.replay_out / history_out / out_one` (plan P2-2)."""
     hidden = m.hidden_at is not None
     quote = m.meta.get("quote") if isinstance(m.meta, dict) else None
     return {"seq": m.seq, "id": m.id, "lane": m.lane, "kind": m.kind,
-            "sender": {"kind": m.sender_kind, "id": m.sender_id, "name": name},
+            # only member messages show an avatar: AI and system rows carry null whatever their sender id (R-V8)
+            "sender": {"kind": m.sender_kind, "id": m.sender_id, "name": name,
+                       "avatar_url": avatar_url(avatar_id) if m.sender_kind == "user" else None},
             "text": "" if hidden else m.text, "assisted": bool(m.assisted), "reply_to": m.reply_to,
             "ai_status": m.ai_status, "meta": None if hidden else m.meta, "created_at": iso_utc(m.created_at),
             "hidden": hidden, "quote": None if hidden else quote,
@@ -93,9 +102,9 @@ def room_out(room: Room, *, my_role: str | None, member_count: int, online_count
             if isinstance(room.agent_config, dict) else []}
 
 
-def request_out(r: RoomJoinRequest, name: str, room_name: str) -> dict:
+def request_out(r: RoomJoinRequest, name: str, room_name: str, avatar_id: str | None = None) -> dict:
     return {"id": r.id, "room_id": r.room_id, "room_name": room_name, "user_id": r.user_id, "name": name,
-            "status": r.status, "created_at": iso_utc(r.created_at)}
+            "avatar_url": avatar_url(avatar_id), "status": r.status, "created_at": iso_utc(r.created_at)}
 
 
 REOPEN_ADMIN_ONLY = ("admin",)  # R-O9: a room an operator closed can only be reopened by an operator
@@ -174,8 +183,8 @@ class RoomStore:
             await self._check_slots(s, owner_id, max_owned)
             name = settings.get("name") or clean_text(topic or "", NAME_MAX)
             if not name:
-                username = await s.scalar(select(User.username).where(User.id == owner_id)) or ""
-                name = f"{username}的房间"[:NAME_MAX]
+                owner = await s.scalar(select(display_name()).where(User.id == owner_id)) or ""
+                name = f"{owner}的房间"[:NAME_MAX]
             level = settings.get("level")
             if level is None:
                 level = default_level(await s.scalar(select(RankProfile.tier).where(RankProfile.user_id == owner_id)))
@@ -382,12 +391,12 @@ class RoomStore:
 
     async def _requests_out(self, *conds) -> list[dict]:
         async with self._sm() as s:
-            rows = (await s.execute(select(RoomJoinRequest, User.username, Room.name, Room.topic)
+            rows = (await s.execute(select(RoomJoinRequest, display_name(), User.avatar_id, Room.name, Room.topic)
                                     .join(User, User.id == RoomJoinRequest.user_id)
                                     .join(Room, Room.id == RoomJoinRequest.room_id)
                                     .where(*conds)
                                     .order_by(RoomJoinRequest.created_at, RoomJoinRequest.id))).all()
-        return [request_out(r, n, rn or rt) for r, n, rn, rt in rows]
+        return [request_out(r, n, rn or rt, a) for r, n, a, rn, rt in rows]
 
     async def request_view(self, request_id: str) -> dict | None:
         rows = await self._requests_out(RoomJoinRequest.id == request_id)
@@ -454,9 +463,9 @@ class RoomStore:
         async with self._sm() as s:
             return await s.get(Room, room_id)
 
-    async def username(self, user_id: int) -> str:
+    async def display_name(self, user_id: int) -> str:
         async with self._sm() as s:
-            return await s.scalar(select(User.username).where(User.id == user_id)) or ""
+            return await s.scalar(select(display_name()).where(User.id == user_id)) or ""
 
     async def user_level(self, user_id: int) -> str | None:
         async with self._sm() as s:
@@ -467,11 +476,11 @@ class RoomStore:
 
     async def members(self, room_id: str) -> list[MemberView]:
         async with self._sm() as s:
-            rows = (await s.execute(select(RoomMember.user_id, User.username, RoomMember.role)
+            rows = (await s.execute(select(RoomMember.user_id, display_name(), RoomMember.role, User.avatar_id)
                                     .join(User, User.id == RoomMember.user_id)
                                     .where(RoomMember.room_id == room_id, *_ACTIVE)
                                     .order_by(RoomMember.joined_at, RoomMember.id))).all()
-        return [MemberView(u, n, r) for u, n, r in rows]
+        return [MemberView(u, n, r, a) for u, n, r, a in rows]
 
     async def member_count(self, room_id: str) -> int:
         async with self._sm() as s:
@@ -723,11 +732,17 @@ class RoomStore:
                 or_(RoomMessage.lane == "public", RoomMessage.audience_id == user_id))
 
     async def _named(self, stmt) -> list[tuple[RoomMessage, str | None]]:
+        """(message, sender's display name). The sender's avatar id rides on the instance (`sender_avatar_id`, not a
+        column) so the pair shape the callers use stays as it was (plan S8)."""
         async with self._sm() as s:
-            return [(m, n) for m, n in (await s.execute(stmt)).all()]
+            out = []
+            for m, n, avatar in (await s.execute(stmt)).all():
+                m.sender_avatar_id = avatar
+                out.append((m, n))
+            return out
 
     def _select(self):
-        return select(RoomMessage, User.username).outerjoin(User, User.id == RoomMessage.sender_id)
+        return select(RoomMessage, display_name(), User.avatar_id).outerjoin(User, User.id == RoomMessage.sender_id)
 
     async def replay(self, room_id: str, user_id: int, after_seq: int, limit: int):
         rows = await self._named(self._select().where(*self._visible(room_id, user_id), RoomMessage.seq > after_seq)
@@ -757,7 +772,7 @@ class RoomStore:
                 RoomMessage.hidden_at.is_(None), RoomMessage.kind.in_(QUOTABLE)))).first()
             if row is None:
                 return None
-            m, name = row
+            m, name = row[0], row[1]
             text = m.text or ""
             if m.kind == "voice":
                 text = await s.scalar(select(RoomVoice.transcript).where(RoomVoice.message_id == m.id)) or ""
@@ -800,8 +815,8 @@ class RoomStore:
                     for r in (await s.scalars(select(RoomReaction).where(RoomReaction.message_id.in_(chunk))
                                               .order_by(RoomReaction.created_at, RoomReaction.id))).all():
                         reactions.setdefault(r.message_id, []).append(r)
-        return [message_out(m, n, voice=voices.get(m.id), reactions=_group(reactions.get(m.id, [])))
-                for m, n in rows]
+        return [message_out(m, n, voice=voices.get(m.id), reactions=_group(reactions.get(m.id, [])),
+                            avatar_id=sender_avatar(m)) for m, n in rows]
 
     async def replay_out(self, room_id: str, user_id: int, after_seq: int, limit: int) -> tuple[list[dict], bool]:
         rows, truncated = await self.replay(room_id, user_id, after_seq, limit)

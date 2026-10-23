@@ -8,6 +8,7 @@ import {
 import { LinkRoute, Slot, WordActions } from "./extension-points-react";
 import { AddVocabularyButton } from "~/features/vocabulary";
 import { TestProviders } from "~/test/render";
+import { HOME_PATH } from "~/lib/home-route";
 
 const on = (...keys: string[]): LinkFlags => ({
   enabled: true, links: Object.fromEntries(LINK_KEYS.map((k) => [k, keys.includes(k)])) as LinkFlags["links"],
@@ -113,7 +114,7 @@ describe("<LinkRoute>", () => {
     <MemoryRouter initialEntries={["/t"]}>
       <Routes>
         <Route path="/t" element={<LinkRoute route={route} />} />
-        <Route path="/practice" element={<p>practice</p>} />
+        <Route path={HOME_PATH} element={<p>home</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -121,7 +122,7 @@ describe("<LinkRoute>", () => {
   it("waits while the flags are not loaded, then renders the page", () => {
     view();
     expect(screen.queryByText("page")).toBeNull();
-    expect(screen.queryByText("practice")).toBeNull();
+    expect(screen.queryByText("home")).toBeNull();
     act(() => setLinkFlags(on()));
     expect(screen.getByText("page")).toBeInTheDocument();
   });
@@ -142,9 +143,9 @@ describe("<LinkRoute>", () => {
     error.mockRestore();
   });
 
-  it("goes back to practice once loaded flags say no", () => {
+  it("goes back home once loaded flags say no", () => {
     view();
     act(() => setLinkFlags({ ...on(), enabled: false }));
-    expect(screen.getByText("practice")).toBeInTheDocument();
+    expect(screen.getByText("home")).toBeInTheDocument();
   });
 });

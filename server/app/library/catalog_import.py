@@ -13,12 +13,14 @@ from pathlib import Path
 from sqlalchemy import update
 
 from app.core import metering
+from app.core.learning_events import LibraryItemReady
 from app.library import ai, catalog_store, paths, pipeline, segment, sentences as sentences_mod, store, subtitles
 from app.library.errors import Aborted, LibraryError
 from app.library.limits import AI_BATCH_MAX
 from app.library.media import Normalized
 from app.library.pipeline import FetchRequest, PipelineDeps
 from app.models import CatalogItem
+from app.storage.base import StorageError
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,7 @@ async def _load(deps: PipelineDeps, catalog_id: str) -> CatalogItem:
     return row
 
 
-async def _media_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress: Progress) -> int:
+async def _media_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress: Progress) -> tuple[int, Path]:
     settings = deps.settings()
     link = row.source == "link"
     t0, t1 = (30, 45) if link else (0, 20)
@@ -108,27 +110,35 @@ async def _media_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress
     has_poster = info.has_video and await deps.tools.poster(src, poster, info.duration_ms, home=tmp)  # R-SI2
     normalized = await _transcode(deps, src, info, out_dir, tmp)
     await progress.set("transcode", t1)
-    final = paths.catalog_dir(deps.data_dir, row.id)
-    media_dst = final / normalized.path.name
-    paths.replace(normalized.path, media_dst)
-    if has_poster:
-        paths.replace(poster, final / "poster.jpg")
-    size = paths.file_bytes(media_dst) + (paths.file_bytes(final / "poster.jpg") if has_poster else 0)
-    rel = paths.catalog_rel(row.id)
+    blobs = deps.storage()  # plan L1 Task 11 / R6: put first, commit second; the staging copy stays local (R7)
+    media_key = paths.catalog_media_key(row.id, normalized.path.name)
+    poster_key = paths.catalog_poster_key(row.id)
+    written: list[str] = []
+    try:
+        media_info = await blobs.put_file(media_key, normalized.path, content_type=normalized.mime)
+        written.append(media_key)
+        size = media_info.size
+        if has_poster:
+            poster_info = await blobs.put_file(poster_key, poster, content_type="image/jpeg")
+            written.append(poster_key)
+            size += poster_info.size
+    except StorageError as exc:
+        await pipeline.forget_keys(blobs, written)
+        raise LibraryError("network") from exc
     async with deps.sessionmaker() as s:
         done = await s.execute(update(CatalogItem).where(CatalogItem.id == row.id,
                                                          CatalogItem.status == "processing").values(
-            duration_ms=info.duration_ms, media_path=f"{rel}/{media_dst.name}",
-            poster_path=f"{rel}/poster.jpg" if has_poster else None, media_mime=normalized.mime,
+            duration_ms=info.duration_ms, media_path=media_key,
+            poster_path=poster_key if has_poster else None, media_mime=normalized.mime,
             media_bytes=size, updated_at=deps.clock()))
         await s.commit()
     if done.rowcount != 1:
-        paths.remove_tree(final)
+        await pipeline.forget_keys(blobs, written)
         raise Aborted()
     src.unlink(missing_ok=True)  # the original download / upload is not kept
     logger.info("library catalog media ready catalog=%s kind=%s duration_ms=%d bytes=%d poster=%s", row.id,
                 normalized.kind, info.duration_ms, size, "yes" if has_poster else "no")
-    return info.duration_ms
+    return info.duration_ms, normalized.path
 
 
 def _fresh_name(current_rel: str | None, wanted: str) -> str:
@@ -164,35 +174,44 @@ async def _replace_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progre
     has_poster = info.has_video and await deps.tools.poster(src, poster, info.duration_ms, home=tmp)
     normalized = await _transcode(deps, src, info, out_dir, tmp)
     await progress.set("transcode", 80)
-    final = paths.catalog_dir(deps.data_dir, row.id)
+    blobs = deps.storage()
     rel = paths.catalog_rel(row.id)
-    name = _fresh_name(row.media_path, normalized.path.name)
-    media_dst = final / name
-    paths.replace(normalized.path, media_dst)
-    poster_rel = row.poster_path
-    if has_poster:
-        paths.replace(poster, final / "poster.jpg")
-        poster_rel = f"{rel}/poster.jpg"
-    size = paths.file_bytes(media_dst) + (paths.file_bytes(final / "poster.jpg") if poster_rel else 0)
+    name = _fresh_name(row.media_path, normalized.path.name)  # R-KV6: a new key, never the one copies stream
+    media_key = f"{rel}/{name}"
+    poster_key = paths.catalog_poster_key(row.id)
+    written: list[str] = []
+    try:
+        media_info = await blobs.put_file(media_key, normalized.path, content_type=normalized.mime)
+        written.append(media_key)
+        size = media_info.size
+        poster_rel = row.poster_path
+        if has_poster:
+            poster_info = await blobs.put_file(poster_key, poster, content_type="image/jpeg")
+            written.append(poster_key)
+            size += poster_info.size
+            poster_rel = poster_key
+        elif poster_rel:  # the poster is kept: it still counts toward the catalog item's bytes
+            kept = await blobs.stat(poster_rel)
+            size += kept.size if kept is not None else 0
+    except StorageError as exc:
+        await pipeline.forget_keys(blobs, written)
+        raise LibraryError("network") from exc
     old_rel = row.media_path
     async with deps.sessionmaker() as s:
         done = await s.execute(update(CatalogItem).where(CatalogItem.id == row.id,
                                                          CatalogItem.status == "processing").values(
-            duration_ms=info.duration_ms, media_path=f"{rel}/{name}", poster_path=poster_rel,
+            duration_ms=info.duration_ms, media_path=media_key, poster_path=poster_rel,
             media_mime=normalized.mime, media_bytes=size, updated_at=deps.clock()))
         if done.rowcount != 1:
             await s.rollback()
-            media_dst.unlink(missing_ok=True)  # only the new file: copies still read the old one (never the tree)
+            await pipeline.forget_keys(blobs, written)  # only the new keys: copies still read the old file
             raise Aborted()
         fresh = await s.get(CatalogItem, row.id)
         copies = await catalog_store.sync_copies(s, fresh, deps.clock())
         await s.commit()
     (tmp / REPLACE_MARK).unlink(missing_ok=True)
-    if old_rel and old_rel != f"{rel}/{name}":
-        try:
-            paths.absolute(deps.data_dir, old_rel).unlink(missing_ok=True)
-        except (ValueError, OSError):
-            pass  # an unreferenced leftover; removed with the catalog directory (R-KV6)
+    if old_rel and old_rel != media_key:  # after the commit only: the old object is no longer referenced
+        await pipeline.forget_keys(blobs, [old_rel])
     src.unlink(missing_ok=True)
     logger.info("library catalog media replaced catalog=%s kind=%s duration_ms=%d bytes=%d copies=%d", row.id,
                 normalized.kind, info.duration_ms, size, copies)
@@ -279,16 +298,18 @@ async def process(deps: PipelineDeps, catalog_id: str, *, http, translate_templa
     tmp.mkdir(parents=True, exist_ok=True)
     progress = Progress(deps, row.id)
     if row.seg_count == 0:
-        media = None
-        if row.media_path:
-            candidate = paths.absolute(deps.data_dir, row.media_path)
-            media = candidate if candidate.is_file() else None
-        if media is None:
-            duration_ms = await _media_stage(deps, row, tmp, progress)
+        blobs = deps.storage()
+        media: Path | None = None
+        if not row.media_path or not await pipeline.is_stored(blobs, row.media_path):
+            duration_ms, media = await _media_stage(deps, row, tmp, progress)
             row = await _load(deps, catalog_id)
-            media = paths.absolute(deps.data_dir, row.media_path)
         else:
             duration_ms = row.duration_ms or 0
+        # recognition is the only reader of the media: fetch it locally just for that (R7), never for subtitles
+        has_subs = (tmp / pipeline.UPLOADED_SUBS).is_file() or (tmp / pipeline.PLATFORM_SUBS).is_file()
+        if media is None and not has_subs and deps.settings().library_asr_available:
+            media = tmp / f"media{Path(row.media_path).suffix}"
+            await pipeline.fetch_media(blobs, row.media_path, media)
         built, flags, sub_source, low = await _sentences(deps, row, media, duration_ms, tmp, progress)
         if not built:
             raise LibraryError("no_subtitles")
@@ -311,5 +332,6 @@ async def process(deps: PipelineDeps, catalog_id: str, *, http, translate_templa
         await s.commit()
     if done.rowcount != 1:
         raise Aborted()
+    pipeline.announce(deps, LibraryItemReady(user_id=None, catalog_id=catalog_id))  # plan L4 Task 9: after the commit
     paths.remove_tree(tmp)
     logger.info("library catalog ready catalog=%s", catalog_id)

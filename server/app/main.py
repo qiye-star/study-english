@@ -13,7 +13,9 @@ from app.core.config import Settings
 from app.core.db import make_engine
 from app.core.errors import install_error_handlers
 from app.core.learning_events import LearningBus
+from app.core.login_failures import LoginFailures
 from app.services.grammar import load_grammar_rules
+from app.services.mailer import Mailer
 from app.core.logging_setup import configure_logging
 from app.core.bodylimit import BodyLimitMiddleware
 from app.core.maintenance import MaintenanceMiddleware
@@ -26,14 +28,17 @@ from app.links import purge as links_purge
 from app.links.agent_sources import install as install_agent_sources
 from app.links.greeting_facts import install as install_greeting_facts
 from app.links.setup import install as install_links
+from app.activation.setup import install as install_activation  # vocabulary activation (plan L4)
+from app.activation import purge as activation_purge  # orphan sentence-index sweep (plan L4 R10)
 from app.agents.memory.setup import install as install_memory  # agents memory (plan A2)
 from app.agents.tutor.handler import TutorModeHandler  # agents tutor mode (plan A3)
 from app.library.catalog_jobs import install as install_catalog  # curated catalog jobs (plan 2026-10-14 SI)
 from app.library.worker import install as install_library  # imported media library (plan 2026-10-13 S1)
+from app.storage.config import install as install_storage  # object storage (plan 2026-10-21-l1-object-storage)
 from app.realtime.realtime_tickets import RealtimeRegistry, TicketStore
 from app.routers import (
-    admin, admin_accounts, admin_agents, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, chat_home, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
-    admin_users, admin_web, admin_wordbook, ai_audio, ai_chat, assessments, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, library, library_catalog, library_import, links, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
+    account, admin, admin_accounts, avatars, admin_agents, admin_avatars, admin_catalog, admin_changelog, admin_library, agents, agents_memory, agents_tutor, chat_home, admin_auth, admin_links, admin_ops, announcements, admin_prompts, admin_rank, admin_rooms, admin_settings, admin_usage,
+    admin_users, admin_web, admin_wordbook, activation, ai_audio, ai_chat, assessments, captcha, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, invites_me, library, library_catalog, library_import, links, dubbing, admin_dubbing, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
 
@@ -60,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["backups"] = asyncio.create_task(backups.daily_loop(app_))  # admin v2 §12
         tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
+        tasks["activation_purge"] = asyncio.create_task(activation_purge.daily_loop(app_))  # plan L4 R10 (off by switch)
         tasks["library"] = asyncio.create_task(app_.state.library.loop())  # library queue (video-import §6.1)
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): await app_.state.catalog.recover() goes on the next line ---
         await app_.state.catalog.recover()  # requeue + run interrupted catalog imports
@@ -91,6 +97,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.http = http
     app.state.limiter = RateLimiter(settings.rate_limit_per_minute)
     app.state.user_limiter = RateLimiter(settings.ai_rate_limit_per_minute)
+    app.state.nickname_limiter = RateLimiter(10, window=3600.0)  # PATCH /api/me: per user per hour (plan S6, R-F12)
+    app.state.avatar_upload_limiter = RateLimiter(10, window=3600.0)  # POST /api/me/avatar: per user per hour (R-V5)
+    app.state.avatar_report_limiter = RateLimiter(20, window=86400.0)  # POST /api/avatar-reports: per user per day (R-V6)
+    # outbound mail: settings are read when the mail goes out; tests inject a FakeSender via email_sender_override
+    app.state.mailer = Mailer(lambda: app.state.settings, lambda: getattr(app.state, "email_sender_override", None))
+    app.state.email_ip_limiter = RateLimiter(settings.email_codes_per_ip_hourly, window=3600.0)  # POST /api/email/code
+    app.state.invite_fail_limiter = RateLimiter(settings.invite_failures_per_ip_hourly, window=3600.0)  # bad invite codes per IP (invites v2 R-I5)
+    app.state.invite_action_limiter = RateLimiter(5, window=86400.0)  # generate + replace a user code, per user per day (invites v2 R-I6)
+    app.state.captcha_limiter = RateLimiter(settings.captcha_challenges_per_minute)  # GET /api/captcha/challenge: per IP per minute
+    app.state.login_failures = LoginFailures(settings.captcha_login_failures, settings.captcha_login_window_minutes * 60)  # captcha R-C6/R-C8, in-process
     app.state.realtime_tickets = TicketStore(settings.realtime_ticket_ttl_seconds)
     app.state.realtime_registry = RealtimeRegistry(settings.realtime_max_sessions)
     app.state.realtime_drains = set()  # background drains of closed calls (see routers/realtime.py)
@@ -100,12 +116,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     agents_runtime(app)  # agents spec §3.3: sources, modes, hooks, idempotency ledger (plan R-C2); the only access is runtime(app)
     install_agent_sources(app)  # learned / weak / due words + word lookup (links layer, R-A1; gated per turn)
     install_greeting_facts(app)  # daily greeting: wordbook-backed facts source (plan 2026-10-23 R3)
+    install_activation(app)  # plan L4: activation subscriptions and the dormant-words agent source (gated by ACTIVATION_ENABLED)
     # --- anchors for the other agents plans (append below, in this order; runtime(app) is the only access) ---
     install_memory(app, agents_runtime(app))  # agents memory: source "memory" + after_turn hook (plan A2)
     agents_runtime(app).modes.register(TutorModeHandler(app.state.sessionmaker, lambda: app.state.settings))  # plan A3 tutor
     # plan A5 (rooms): room persona wiring via deps_for(app) / TurnRequest(in_room=True)
     # Rooms v2 (plan P2-1): installed onto the RoomsRuntime when routers.rooms.runtime() first builds it.
     app.state.rooms_extensions = (rooms_voice.install, rooms_summary.install, rooms_agents.install)  # + agents (plan A5)
+    install_storage(app)  # L1: app.state.storage (plan 2026-10-21-l1-object-storage); before the library reads it
     install_library(app)  # app.state.library: queue, media tickets, fetch stage (spec 2026-10-13-video-import §6.1)
     # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import.install(app)` goes on the next
     # line; it registers the yt-dlp fetch stage with app.state.library.set_fetch_stage(...) ---
@@ -124,22 +142,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # admin_web(/admin 静态托管)与 web(SPA 回退)兜底非 API 的 GET,且 admin_web 必须在 web 之前。
     for module in (
         agents_memory,  # /api/agents/memory/*; must precede A1's `agents` router and stubs (plan A2)
-        health, announcements, changelog, sessions, grammar_prompt, config_api, speech, conversations, assessments,
+        health, announcements, changelog, sessions, account, avatars, invites_me, captcha, grammar_prompt, config_api, speech, conversations, assessments,
         practice_items, vocabulary, stats, ai_chat, grammar, ai_audio, realtime, rank, rooms, rooms_agents, rooms_voice, rooms_summary, wordbook,
         dictionary,  # /api/dictionary/*: before stubs (catch-all writes)
-        links, agents, agents_tutor,
+        links, agents, agents_tutor, activation,  # /api/activation/* (plan L4); before stubs
         chat_home,  # /api/chat-home/* (plan 2026-10-23 §5); after agents, before stubs
         library,  # /api/library/* (spec 2026-10-13-video-import §9); before stubs
         # --- anchor for plan S2 (2026-10-13-video-import-server-import): `library_import,` goes on the next line ---
         library_import,
         library_catalog,  # /api/library/catalog* (spec 2026-10-14-curated-library §9); before stubs
+        dubbing,  # /api/dubbing/* (plan 2026-10-21-l5-dubbing S7); before stubs
         admin_auth, admin, admin_accounts, admin_settings, admin_rank, admin_users, admin_rooms, admin_usage, admin_ops,
         admin_prompts, admin_wordbook, admin_links, admin_agents,
         # --- anchor for plan A (2026-10-13-video-import-admin): `admin_library,` goes on the next line (before stubs) ---
         admin_library,
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): admin_catalog, goes on the next line (before stubs) ---
         admin_catalog,  # /api/admin/library/catalog* (spec 2026-10-14-curated-library §9); before stubs
+        admin_dubbing,  # /api/admin/library/catalog/{id}/roles* (plan L5 S10); before stubs
         admin_changelog,  # /api/admin/changelog (plan 2026-10-14-changelog S3); before stubs
+        admin_avatars,  # /api/admin/avatar-reports, /api/admin/users/{id}/avatar (plan avatar S7); before stubs
         stubs, admin_web, web,
     ):
         app.include_router(module.router)
@@ -183,6 +204,15 @@ def register_core_listeners(app: FastAPI, hub: SettingsHub) -> None:
                   keys={"rate_limit_per_minute"})
     hub.subscribe("user_limiter", lambda o, n: setattr(state.user_limiter, "limit", n.ai_rate_limit_per_minute),
                   keys={"ai_rate_limit_per_minute"})
+    hub.subscribe("email_ip_limiter", lambda o, n: setattr(state.email_ip_limiter, "limit", n.email_codes_per_ip_hourly),
+                  keys={"email_codes_per_ip_hourly"})
+    hub.subscribe("invite_fail_limiter", lambda o, n: setattr(state.invite_fail_limiter, "limit", n.invite_failures_per_ip_hourly),
+                  keys={"invite_failures_per_ip_hourly"})
+    hub.subscribe("captcha_limiter", lambda o, n: setattr(state.captcha_limiter, "limit", n.captcha_challenges_per_minute),
+                  keys={"captcha_challenges_per_minute"})
+    hub.subscribe("login_failures",
+                  lambda o, n: state.login_failures.reconfigure(n.captcha_login_failures, n.captcha_login_window_minutes * 60),
+                  keys={"captcha_login_failures", "captcha_login_window_minutes"})
     hub.subscribe("realtime_tickets", lambda o, n: state.realtime_tickets.set_ttl(n.realtime_ticket_ttl_seconds),
                   keys={"realtime_ticket_ttl_seconds"})
     hub.subscribe("realtime_registry", lambda o, n: state.realtime_registry.set_max(n.realtime_max_sessions),

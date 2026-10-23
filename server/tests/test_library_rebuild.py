@@ -89,3 +89,22 @@ async def test_moving_a_sentence_by_hand_clears_its_flags_but_editing_text_does_
     assert "timing" in seg["flags"]
     seg = (await client.patch(url, headers=auth_headers, json={"start_ms": seg["start_ms"] + 100})).json()["segment"]
     assert seg["flags"] == []
+
+
+async def test_a_rebuild_publishes_library_item_ready_for_the_index(app, client, auth_headers):
+    from app.core.learning_events import LibraryItemReady
+
+    fake = FakeTimedAsr([timed(utt(A, 27_360), utt(B, 31_000))])
+    use_fakes(app, FakeTools(silences=[]), timed_asr=fake)
+    item_id = await upload(client, auth_headers, fake_media(40_000, video=False), filename="Pod.m4a")
+    await process(app)
+    seen: list = []
+
+    async def handler(event):
+        seen.append(event)
+    app.state.settings = app.state.settings.model_copy(update={"activation_enabled": True})
+    app.state.learning_bus.subscribe(LibraryItemReady, "test.rebuild", handler, flag="activation_enabled")
+    r = await client.post(f"/api/library/items/{item_id}/rebuild", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    await app.state.learning_bus.drain()
+    assert [(e.item_id, e.catalog_id) for e in seen] == [(item_id, None)]

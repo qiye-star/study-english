@@ -2,7 +2,7 @@ import importlib.util
 import ipaddress
 import re
 import shutil
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -65,6 +65,43 @@ class Settings(BaseSettings):
 
     registration_mode: Literal["open", "invite", "closed"] = "open"
     invite_code: str = ""
+    # 邀请码 v2(计划 2026-10-14-invites-v2 S2;热改):用户码累计上限(可按人覆盖,0 = 收回邀请权)、注册满几天且邮箱已验证才能生成、
+    # 同一 IP 每小时的邀请码错误次数
+    invites_user_code_max_uses: int = Field(10, ge=0, le=1000)
+    invites_user_min_account_days: int = Field(7, ge=0, le=365)
+    invite_failures_per_ip_hourly: int = Field(5, ge=1, le=1000)
+    # 账号 v2(计划 S2):登录有效天数(每次使用滑动续期,热改);身份 HMAC 密钥(只读环境变量,等同密钥)
+    access_token_ttl_days: int = Field(30, ge=1, le=365)
+    identity_pepper: str = ""  # env-only secret;丢失或更换 = 所有邮箱登录与唯一性失效
+    # 账号 v2 邮箱(计划 S11;INDEX X11、X12):全部热改,每次请求读 app.state.settings
+    email_registration_required: bool = True  # 关 = 旧注册方式(应急开关)
+    email_backend: Literal["off", "console", "smtp"] = "off"
+    smtp_host: str = ""
+    smtp_port: int = Field(465, ge=1, le=65535)
+    smtp_security: Literal["ssl", "starttls"] = "ssl"
+    smtp_user: str = ""
+    smtp_password: str = ""  # secret(QQ 授权码):不进日志、审计、导出
+    smtp_from: str = ""  # 空 = smtp_user
+    email_codes_per_target_daily: int = Field(10, ge=1, le=100)
+    email_codes_per_ip_hourly: int = Field(10, ge=1, le=1000)
+    email_daily_global: int = Field(200, ge=1, le=100000)
+    email_domain_mode: Literal["any", "allowlist", "blocklist"] = "blocklist"
+    email_domain_list: str = ""
+    email_binding_required: bool = False
+    email_binding_deadline: str = ""  # 空或带时区的 ISO 8601 日期时间,例如 2026-10-28T00:00+08:00
+    # 账号 v2 · 头像(计划 S3;R-V3):总开关,热改。关 = 不能上传、读取 404;已存文件与载荷照常
+    avatar_upload_enabled: bool = True
+    # 人机验证(spec 2026-10-20-captcha-altcha §4):除 CAPTCHA_SECRET 外全部热改。
+    # off 不验;adaptive 注册 / 发码 / 找回必验、登录连续失败后才验;always 登录也必验(桌面端无法登录,应急用)。
+    captcha_mode: Literal["off", "adaptive", "always"] = "off"
+    captcha_secret: str = ""  # env-only secret;空 = 未配置(开着时失败即关闭,503)
+    captcha_ttl_seconds: int = Field(300, ge=60, le=1800)  # 挑战有效期
+    captcha_cost: int = Field(1000, ge=1, le=100000)  # PBKDF2 cost(默认 1000:桌面实测约 2.5 秒;调低会降低脚本成本)
+    captcha_counter_max: int = Field(10000, ge=10, le=1000000)  # 服务端选 counter 的上限(调低会降低脚本成本)
+    captcha_flagged_multiplier: int = Field(2, ge=1, le=10)  # 被登录失败标记的 IP 的 counter 倍数
+    captcha_login_failures: int = Field(5, ge=1, le=100)  # 同一 IP 或登录名在窗口内失败几次后要求验证
+    captcha_login_window_minutes: int = Field(15, ge=1, le=1440)  # 失败计数窗口
+    captcha_challenges_per_minute: int = Field(20, ge=1, le=1000)  # 同一 IP 每分钟可取几个挑战
     trust_proxy_headers: bool = False
     rate_limit_per_minute: int = 10
     ai_rate_limit_per_minute: int = 60
@@ -205,6 +242,9 @@ class Settings(BaseSettings):
     wordbook_autoplay: bool = True
     wordbook_show_example: bool = True
     wordbook_data_dir: str = ""
+    # L3 FSRS rollout (plan 2026-10-21-l3-fsrs R9, R10): 0 = every user keeps the Leitner boxes (the default)
+    wordbook_fsrs_pct: int = Field(0, ge=0, le=100)
+    wordbook_fsrs_retention_pct: int = Field(90, ge=85, le=95)
 
     # 学习联动(spec 2026-10-11-learning-links §7.1);总开关关 = 与未安装联动完全相同
     links_enabled: bool = False
@@ -268,6 +308,13 @@ class Settings(BaseSettings):
     library_link_timeout_minutes: int = Field(20, ge=1, le=120)
     library_link_allow_generic: bool = False
     library_ytdlp_cookies_file: str = ""  # env-only;Netscape 格式,含账号会话,等同密钥
+
+    # 词汇激活(plan 2026-10-21-l4 R17);总开关关 = /api/activation/* 除 config 外 404;没有激活统计、沉睡词页与原片例句
+    activation_enabled: bool = False
+
+    # 影视配音(plan 2026-10-21-l5-dubbing R8/R22);总开关关 = /api/dubbing/* 除 config 外 404;角色管理接口不受影响
+    dubbing_enabled: bool = False
+    dubbing_suggest_daily_per_user: int = Field(120, ge=0, le=5000)  # 占位,未校准
     library_ytdlp_proxy: str = ""  # env-only secret;可能含账号口令
     # D8:每句译文与句子分析(调大模型,花钱);按「句」计的每日额度,命中已存的译文 / 分析不计
     library_ai_enabled: bool = False
@@ -308,6 +355,21 @@ class Settings(BaseSettings):
     backup_keep: int = Field(7, ge=1, le=60)
     backup_hour_utc: int = Field(-1, ge=-1, le=23)
     build_sha: str = ""
+    # object storage (plan 2026-10-21-l1-object-storage R9): env-only; secrets come from the environment only
+    storage_backend: Literal["local", "s3"] = "local"
+    storage_fallback: Literal["", "local", "s3_fallback"] = ""  # read-only fallback during a migration window
+    s3_endpoint: str = ""  # empty = the AWS default endpoint
+    s3_bucket: str = ""
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+    s3_region: str = "us-east-1"
+    s3_path_style: bool = False
+    s3_fallback_endpoint: str = ""
+    s3_fallback_bucket: str = ""
+    s3_fallback_access_key: str = ""
+    s3_fallback_secret_key: str = ""
+    s3_fallback_region: str = "us-east-1"
+    s3_fallback_path_style: bool = False
 
     @field_validator("azure_speech_region")
     @classmethod
@@ -316,6 +378,36 @@ class Settings(BaseSettings):
         value = value.strip().lower()
         if value and not re.fullmatch(r"[a-z0-9]{2,32}", value):
             raise ValueError("invalid Azure region (letters and digits only, e.g. eastus)")
+        return value
+
+    @field_validator("identity_pepper")
+    @classmethod
+    def _identity_pepper(cls, value: str) -> str:
+        """Empty is allowed (email features stay off); otherwise long enough to be a real key. The value is never echoed."""
+        if value and len(value) < 32:
+            raise ValueError("IDENTITY_PEPPER must be at least 32 characters")
+        return value
+
+    @field_validator("captcha_secret")
+    @classmethod
+    def _captcha_secret(cls, value: str) -> str:
+        """Empty is allowed (captcha off); otherwise long enough to be a real key. The value is never echoed."""
+        if value and len(value) < 32:
+            raise ValueError("CAPTCHA_SECRET must be at least 32 characters")
+        return value
+
+    @field_validator("email_binding_deadline")
+    @classmethod
+    def _binding_deadline(cls, value: str) -> str:
+        """Empty, or an ISO 8601 date-time that carries a UTC offset (a bare date is ambiguous). Never echoes the value."""
+        value = value.strip()
+        if value:
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError:
+                raise ValueError("EMAIL_BINDING_DEADLINE must be an ISO 8601 date-time with a UTC offset") from None
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("EMAIL_BINDING_DEADLINE must include a UTC offset")
         return value
 
     @field_validator("admin_ip_allowlist")
@@ -349,6 +441,11 @@ class Settings(BaseSettings):
         return value
 
     app_version: str = "0.7.9"
+
+    @property
+    def email_binding_deadline_at(self) -> datetime | None:
+        """The binding deadline as an aware datetime, or None when unset (validated above)."""
+        return datetime.fromisoformat(self.email_binding_deadline) if self.email_binding_deadline else None
 
     @property
     def admin_ip_networks(self) -> list:

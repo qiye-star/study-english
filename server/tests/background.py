@@ -35,6 +35,12 @@ def _task_sets(app) -> list:
     catalog = getattr(state, "catalog", None)
     if catalog is not None:  # curated catalog import jobs (plan 2026-10-14-curated-library SI); no poll loop exists
         out.append(catalog.pending)
+    mailer = getattr(state, "mailer", None)
+    if mailer is not None:  # outbound mail tasks (accounts v2, plan S15)
+        out.append(mailer.pending)
+    indexer = getattr(state, "activation_indexer", None)
+    if indexer is not None:  # vocabulary activation sentence index builds (plan L4 Task 8)
+        out.append(indexer.pending)
     out.append(getattr(state, "realtime_drains", set()))
     return out
 

@@ -18,6 +18,7 @@ from app.agents.greeting import prompt as greeting_prompt
 from app.core import metering
 from app.core.runtime_settings import bump_revision
 from app.library import ai as library_ai
+from app.library import roles_ai
 from app.models import PromptVersion, iso_utc
 from app.providers import llm
 from app.rooms import assistant
@@ -66,6 +67,8 @@ def default_body(app, key: str) -> str | None:
         return library_ai.DEFAULTS[key]
     if key == "chat.daily_greeting":
         return greeting_prompt.DEFAULT_GREETING_TEMPLATE
+    if key == roles_ai.KEY:  # plan L5 R7
+        return roles_ai.DEFAULT_TEMPLATE
     return TEMPLATES_FILE.read_text(encoding="utf-8")
 
 
@@ -218,6 +221,8 @@ def test_messages(app, key: str, body: str, sample: dict[str, str]) -> tuple[lis
     if key.startswith("wordbook."):
         return (wordbook_explain.render_test(grammar.clean_prompt(body), sample), settings.resolved_wordbook_ai_model,
                 settings)
+    if key == roles_ai.KEY:  # plan L5 R7: the same rendering as the live suggestion (escaping, numbering)
+        return (roles_ai.render_test(grammar.clean_prompt(body), sample), settings.default_llm_model, settings)
     if key in library_ai.KEYS:  # same rendering as the live library endpoints (escaping, numbering; spec D8)
         return (library_ai.render_test(key, grammar.clean_prompt(body), sample), settings.default_llm_model,
                 settings)

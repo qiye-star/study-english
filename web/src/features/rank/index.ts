@@ -4,4 +4,5 @@ export { MatchPage } from "./lazy-pages";
 export { AchievementsPage } from "./achievements-page";
 export { fetchRankConfig, type RankConfig } from "./rank-api";
 export { RankCard } from "./rank-card";
+export { RankMiniCard } from "./rank-mini-card";
 export { NewAchievements } from "./new-achievements";

@@ -16,7 +16,7 @@ const BANNED = /\bliquid:|\bmat-(?:surface|float|chrome|sheet)\b|\bplate\b|--mat
 const KNOWN_SHARED = [
   "~/components/announcement-banner", "~/components/bottom-sheet", "~/components/glass-tab-bar", "~/components/icon-button", "~/components/level-hint",
   "~/components/list-card", "~/components/score-tone", "~/components/segmented-control", "~/components/tone",
-  "~/components/tone-badge", "~/components/zh-toggle", "~/layout/page-header",
+  "~/components/tone-badge", "~/components/zh-defs-cover", "~/components/zh-toggle", "~/layout/page-header", // zh-defs-cover: 查词抽屉的「点击后显示中文释义」(计划 2026-10-23 A5;组件不含 liquid / mat 令牌)
 ];
 
 function walk(dir: string): string[] {

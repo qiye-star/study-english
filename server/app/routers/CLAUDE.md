@@ -4,7 +4,7 @@ HTTP and WebSocket endpoints. Each module exposes one `router = APIRouter(...)`,
 `app/main.py`.
 
 ## What lives here
-`health` (/up), `sessions` (auth/users), `config_api` (/api/config/{key} from `static_config/`),
+`health` (/up), `sessions` (auth/users: password login by username or email; `POST /api/users` with `email_code` when email registration is on; `GET /api/me`; `DELETE /api/sessions/current`; the `/api/me` email fields are masked via `services/identities.py` and the binding state from `core/account_policy.py`), `account` (accounts v2, before `stubs`: `PATCH /api/me` nickname, `POST /api/me/password`, public `POST /api/email/code` (register / reset), `POST /api/password/reset`, signed-in `POST /api/me/email/code` and `POST /api/me/email` (bind / change); HTTP only, logic in `services/email_codes.py`, `services/email_accounts.py`, `services/identities.py`; `cut_connections` comes from `live_connections`), `live_connections` (NOT a router: a plain module with `cut_connections(app, user_id)`, shared by `admin_users` and `account`, so user routes never import each other: INDEX X30), `captcha` (`GET /api/captcha/config` and `GET /api/captcha/challenge`: no auth, no query string, `Cache-Control: no-store`; the challenge is 404 when `captcha_mode` is `off`, 503 without `CAPTCHA_SECRET`, and limited per IP per minute), `captcha_guard` (NOT a router, like `live_connections`: `enforce(request, session, scope, flagged=)`, called explicitly by `sessions` (register, login) and `account` (public email code, password reset, signed-in email code); spec R-C9, INDEX X30), `config_api` (/api/config/{key} from `static_config/`),
 `ai_chat`, `ai_audio` (TTS/STT proxy), `grammar`, `grammar_prompt`, `speech` (Azure tokens,
 iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabulary`, `stats`,
 `realtime` (config, ticket, WS), `rank` (/api/rank/*), `rooms` (/api/rooms/*, incl. `ended`, `{id}/reopen`; WS /api/rooms/ws),
@@ -12,9 +12,10 @@ iFlytek assessments), `conversations`, `assessments`, `practice_items`, `vocabul
 `learned/card`, `free/start`: words and prefixes only in POST bodies, never in URLs), `dictionary` (`/api/dictionary/lookup`: 选词词典,词只在 POST 体,`limited_user`,不受 WORDBOOK_ENABLED 控制;逻辑在 `app/wordbook/lookup.py`;须在 `stubs` 之前), `admin_auth` (admin login/logout/session, TOTP, step-up, own password), `admin` (v1 read-only /api/admin/*),
 `announcements` (public `GET /api/announcements`: active banners + maintenance state),
 `changelog` (`/api/changelog`: `GET ?cursor=&limit=` published entries by `entry_date` desc with `unread` / `latest_id` / per-entry `is_new`, `POST /seen` forward-only read position; login only; only ids, `cursor` and `limit` in URLs; before `stubs`), `admin_changelog` (`/api/admin/changelog`: viewer list, operator create / edit / publish / unpublish / soft delete via `app/admin/changelog.py`; audit carries ids and actions only; before `stubs`; new routes go into the pinned table in `tests/test_changelog_privacy.py`),
+`avatars` (before `stubs`: `POST` / `DELETE /api/me/avatar`, uploads refused with 403 while `AVATAR_UPLOAD_ENABLED` is off; public `GET /api/avatars/{avatar_id}` with no auth, 404 when the switch is off or the id is unknown, `public, max-age=31536000, immutable`; `POST /api/avatar-reports` (201 new, 200 repeat, 404 when the reporter never shared a room with the target); only ids in URLs; the pinned path check is `tests/test_avatars_privacy_sweep.py`), `admin_avatars` (before `stubs`: `/api/admin/avatar-reports` viewer list; `DELETE /api/admin/users/{id}/avatar` operator + step-up; `POST /api/admin/avatar-reports/{id}/dismiss` operator; new routes go into `tests/test_admin_avatars.py`),
 `admin_accounts` (accounts, sessions, `/me/security`, audit list/verify), `admin_settings` (settings CRUD, revisions/revert,
 export/import, doctor, probes), `admin_rank` (rules draft/validate/simulate/publish, user rank ops, matches, reset-all),
-`admin_users` (moderation, quota overrides, invites), `admin_rooms` (room list/detail/actions incl. reopen via
+`admin_users` (moderation, quota overrides, invites: `/api/admin/invites*` for admin codes and `/api/admin/users/{id}/invite*` for a user's code; step-up on revoke, rotate and delete), `invites_me` (`/api/me/invite`: `GET` the owner's panel data, `POST` generate, `POST /rotate` with `{"confirm": true}`; every response `Cache-Control: no-store`; the plain code appears only in the owner's responses; refusals carry a reason name, never a code; shares the per-user daily budget of 5; before `stubs`), `admin_rooms` (room list/detail/actions incl. reopen via
 `rooms.runtime(app)`, reports), `admin_wordbook` (/api/admin/wordbook: overview, dictionary reload, sentence reports
 hide/dismiss via `admin/wordbook_admin.py`), `admin_links` (/api/admin/links: learning-links view via
 `app/links/admin_view.py`, operator breaker reset audited `links.breaker.reset`), `admin_agents` (/api/admin/agents: overview, persona query (POST) / disable / restore / edit / delete (step-up), reports, function calling probe via `app/admin/agents_admin.py`), `links` (/api/links/*: `GET config`, `PUT prefs`, plus each link's
@@ -45,6 +46,10 @@ logic needed elsewhere belongs in `app/services/` (routers may re-export it).
 
 ## Pitfalls
 - Auth via `Depends(current_user)` / `limited_user` (rate-limited) from `app.core.deps`.
+- `current_user_unbound` is for exactly four endpoints that must work while email binding is enforced: `GET /api/me`,
+  `DELETE /api/sessions/current` (`sessions.py`), `POST /api/me/email/code`, `POST /api/me/email` (`account.py`). Every other
+  endpoint uses `current_user`, so a user who must still bind gets `403 email_binding_required` there (including
+  `PATCH /api/me` and `POST /api/me/password`). Adding a fifth unbound endpoint needs a decision, not a drive-by edit.
 - Every `/api/admin/*` route declares a role: `Depends(app.admin.perms.require("viewer"|"operator"|"superadmin"))`
   or a step-up dependency (`tests/test_admin_routes_guarded.py` walks FastAPI's included routers and also rejects
   duplicate method+path); writes audit in the same transaction. Keep admin routers thin: logic in `app/admin/`.
@@ -53,3 +58,4 @@ logic needed elsewhere belongs in `app/services/` (routers may re-export it).
 - Map vendor exceptions to HTTP here; errors render as `{"error": ...}`.
 - Never log request bodies, tickets, keys or user text. New strings exposed to the web UI need zh+en locales on the web side.
 - SSE agent turns must use `AgentStream` (closes the event iterator in `finally`); never a bare `StreamingResponse`.
+- Human verification: `captcha_guard.enforce` is called explicitly in the five protected handlers, in the positions set by spec §3 (before password hashing and before any user lookup, and after the `closed` / invite checks on register). Login records a failure only on a 401 (unknown names too); a captcha rejection is never a login failure. Keep the five call sites and the `captcha` router before `stubs`.

@@ -14,9 +14,10 @@ import { RoomAgentsSection } from "./agents/agents-section";
 import { JoinRequestRows } from "./create/join-requests";
 import { listJoinRequests, ROOMS_ALL_SERVER_ERRORS, updateRoomSettings, type RoomSettingsInput } from "./create/rooms-v2-api";
 import { SettingsFields } from "./create/settings-fields";
-import type { JoinRequestInfo, RoomInfo } from "./protocol";
+import type { JoinRequestInfo, RoomInfo, RoomMemberInfo } from "./protocol";
 import type { RoomState } from "./room-state";
 import { closeRoom, fetchRoomsConfig, kickMember, leaveRoom, type RoomsConfig } from "./rooms-api";
+import { AvatarReportSheet } from "./avatar-report-sheet";
 import { LQ_DANGER_TEXT, LQ_DIALOG, LQ_SECONDARY } from "~/components/liquid";
 
 interface Confirm { title: string; action: string; run(): Promise<void> }
@@ -62,6 +63,7 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
   const [pending, setPending] = useState<RoomSettingsInput>({});
   const [fetched, setFetched] = useState<JoinRequestInfo[]>([]);
   const [decided, setDecided] = useState<ReadonlySet<string>>(() => new Set());
+  const [reporting, setReporting] = useState<RoomMemberInfo | null>(null);
 
   useEffect(() => {
     if (!open || !owner || config) return;
@@ -151,7 +153,7 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
           <Group title={t("web.rooms.settings.members")}>
             {state.members.map((m) => (
               <div key={m.userId} data-testid="room-member" className="flex min-h-row items-center gap-3 py-2 pl-3.5 pr-2">
-                <Avatar name={m.name} size="sm" tone={m.userId === state.me?.userId ? "blue" : "neutral"} />
+                <Avatar name={m.name} size="sm" tone={m.userId === state.me?.userId ? "blue" : "neutral"} src={m.avatarUrl} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-body font-medium text-ink">{m.name}</span>
                   <span className="mt-0.5 flex items-center gap-1.5 text-meta text-ink-2">
@@ -161,6 +163,13 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
                     )}
                   </span>
                 </span>
+                {m.avatarUrl && m.userId !== state.me?.userId && (
+                  <button type="button" data-testid={`room-avatar-report-${m.userId}`} disabled={busy}
+                    className="inline-flex h-tap flex-none items-center rounded-[9px] px-3 text-sub font-medium text-ink-2 hover:bg-surface-2 disabled:opacity-40 liquid:rounded-full liquid:hover:bg-wash"
+                    onClick={() => setReporting(m)}>
+                    {t("web.rooms.avatarReport.action")}
+                  </button>
+                )}
                 {owner && m.userId !== state.me?.userId && (
                   <button type="button" data-testid={`room-kick-${m.userId}`} disabled={busy}
                     className="inline-flex h-tap flex-none items-center rounded-[9px] px-3 text-sub font-medium text-ink-2 hover:bg-surface-2 disabled:opacity-40 liquid:rounded-full liquid:hover:bg-wash"
@@ -190,6 +199,9 @@ export function RoomSettingsSheet({ open, onOpenChange, state, onChanged }: {
           )}
         </BottomSheetContent>
       </BottomSheet>
+      {reporting && (
+        <AvatarReportSheet open onOpenChange={(v) => { if (!v) setReporting(null); }} userId={reporting.userId} name={reporting.name} />
+      )}
       <AlertDialog open={!!confirm} onOpenChange={(v) => { if (!v) setConfirm(null); }}>
         <AlertDialogContent className={`rounded-sheet border-[0.5px] border-hair bg-surface ${LQ_DIALOG}`}>
           <AlertDialogHeader>

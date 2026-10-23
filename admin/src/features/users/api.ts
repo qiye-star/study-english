@@ -8,16 +8,18 @@ const PER_PAGE = 20;
 
 export type UserStatusFilter = "all" | "active" | "disabled";
 export type UserSort = "recent" | "created" | "storage";
+export type UserEmailFilter = "all" | "bound" | "unbound";
 export type UserRow = UserSummary & { disabled_at?: string | null };
 
 export interface UserListFilters {
   status: UserStatusFilter;
   sort: UserSort;
+  email: UserEmailFilter;
 }
 
 export const listUsers = (q: string, page: number, filters: UserListFilters) =>
   request<{ users: UserRow[]; page: number; next: number | null; total: number }>("/api/admin/users", {
-    query: { q: q.trim() || undefined, page, per_page: PER_PAGE, status: filters.status, sort: filters.sort },
+    query: { q: q.trim() || undefined, page, per_page: PER_PAGE, status: filters.status, sort: filters.sort, email: filters.email },
   });
 
 export interface UserStatus {
@@ -55,6 +57,21 @@ export async function revokeTokens(id: Id): Promise<number> {
 /** 临时密码只在这次响应里出现;调用方只放进结果对话框,不记录、不缓存。 */
 export async function resetPassword(id: Id): Promise<string> {
   return (await request<{ password: string }>(`/api/admin/users/${enc(id)}/reset-password`, { method: "POST" })).password;
+}
+
+export interface EmailClearResult {
+  userId: number;
+  emailMasked: string | null;
+  emailVerified: boolean;
+}
+
+/** 清除用户邮箱(operator + 二次验证;不撤销现有登录令牌)。 */
+export async function clearUserEmail(id: Id, reason: string): Promise<EmailClearResult> {
+  const r = await request<{ user_id: number; email_masked: string | null; email_verified: boolean }>(
+    `/api/admin/users/${enc(id)}/email/clear`,
+    { method: "POST", json: { reason } },
+  );
+  return { userId: r.user_id, emailMasked: r.email_masked, emailVerified: r.email_verified };
 }
 
 /** 超级管理员 + 二次验证(服务端 403 Step-up required 时客户端弹框后重放)。 */
@@ -109,23 +126,108 @@ export async function clearQuota(id: Id, key: string): Promise<void> {
   await request(`/api/admin/users/${enc(id)}/quotas/${encodeURIComponent(key)}`, { method: "DELETE", as: "none" });
 }
 
+export type AvatarReportStatus = "open" | "resolved";
+export type AvatarReportReason = "inappropriate" | "impersonation" | "other";
+
+export interface AvatarReportRow {
+  userId: string;
+  username: string;
+  nickname: string | null;
+  /** /api/avatars/<id>,没有头像为 null */
+  avatarUrl: string | null;
+  reports: number;
+  lastReason: AvatarReportReason | null;
+  lastReportedAt: string | null;
+}
+
+interface AvatarReportRowWire {
+  user_id: number | string;
+  username: string;
+  nickname: string | null;
+  avatar_url: string | null;
+  reports: number;
+  last_reason: AvatarReportReason | null;
+  last_reported_at: string | null;
+}
+
+/** 头像举报队列(viewer):open = 当前头像上未处理的举报(最早在前);resolved = 最近处理的在前。 */
+export async function listAvatarReports(status: AvatarReportStatus, page: number): Promise<{ users: AvatarReportRow[]; page: number; next: number | null }> {
+  const r = await request<{ users: AvatarReportRowWire[]; page: number; next: number | null }>("/api/admin/avatar-reports", {
+    query: { status, page },
+  });
+  return {
+    page: r.page,
+    next: r.next,
+    users: r.users.map((u) => ({
+      userId: String(u.user_id),
+      username: u.username,
+      nickname: u.nickname,
+      avatarUrl: u.avatar_url,
+      reports: u.reports,
+      lastReason: u.last_reason,
+      lastReportedAt: u.last_reported_at,
+    })),
+  };
+}
+
+export interface AvatarRemoveResult {
+  userId: string;
+  reportsResolved: number;
+}
+
+/** 移除头像(operator + 二次验证 + 理由):删除头像文件,用户保留账号;未处理举报一并标记为已处理。 */
+export async function removeUserAvatar(id: Id, reason: string): Promise<AvatarRemoveResult> {
+  const r = await request<{ user_id: number | string; removed: boolean; reports_resolved: number }>(`/api/admin/users/${enc(id)}/avatar`, {
+    method: "DELETE",
+    json: { reason },
+  });
+  return { userId: String(r.user_id), reportsResolved: r.reports_resolved };
+}
+
+/** 忽略举报(operator,无理由):头像保留,未处理举报标记为已处理。 */
+export async function dismissAvatarReports(id: Id): Promise<AvatarRemoveResult> {
+  const r = await request<{ user_id: number | string; reports_resolved: number }>(`/api/admin/avatar-reports/${enc(id)}/dismiss`, {
+    method: "POST",
+  });
+  return { userId: String(r.user_id), reportsResolved: r.reports_resolved };
+}
+
 export type InviteState = "active" | "used_up" | "expired" | "revoked";
+export type InviteKind = "admin" | "user";
+
+/** 用户码的所有者(登录名为主;昵称只作辅助显示,X6)。管理员码没有所有者。 */
+export interface InviteOwner {
+  id: number;
+  username: string;
+  nickname: string | null;
+}
+
+/** 兑换人数是精确计数;名字最多 5 个(最新在前)。 */
+export interface InviteRedeemers {
+  total: number;
+  usernames: string[];
+}
 
 export interface Invite {
   id: number;
   label: string;
+  kind: InviteKind;
   uses: number;
+  /** 管理员码为本码上限;用户码为该用户的累计上限(实时配额)。 */
   maxUses: number;
   expiresAt: string | null;
   revokedAt: string | null;
   createdBy: string;
   createdAt: string;
   state: InviteState;
+  owner: InviteOwner | null;
+  redeemers: InviteRedeemers;
 }
 
 interface InviteWire {
   id: number;
   label: string;
+  kind: InviteKind;
   uses: number;
   max_uses: number;
   expires_at: string | null;
@@ -133,15 +235,36 @@ interface InviteWire {
   created_by: string;
   created_at: string;
   state: InviteState;
+  /** 只有列表(GET /api/admin/invites)返回;新建接口不带。 */
+  owner?: { id: number; username: string; nickname: string | null } | null;
+  redeemers?: InviteRedeemers;
 }
 
+const NO_REDEEMERS: InviteRedeemers = { total: 0, usernames: [] };
+
 const inviteIn = (w: InviteWire): Invite => ({
-  id: w.id, label: w.label, uses: w.uses, maxUses: w.max_uses, expiresAt: w.expires_at, revokedAt: w.revoked_at,
-  createdBy: w.created_by, createdAt: w.created_at, state: w.state,
+  id: w.id, label: w.label, kind: w.kind, uses: w.uses, maxUses: w.max_uses, expiresAt: w.expires_at,
+  revokedAt: w.revoked_at, createdBy: w.created_by, createdAt: w.created_at, state: w.state,
+  owner: w.owner ?? null, redeemers: w.redeemers ?? NO_REDEEMERS,
 });
 
-export async function listInvites(): Promise<Invite[]> {
-  return (await request<{ invites: InviteWire[] }>("/api/admin/invites")).invites.map(inviteIn);
+export interface InviteFilter {
+  /** 缺省或 "all" 不筛选。 */
+  kind?: InviteKind | "all";
+  /** 登录名或用户 id;空白不筛选。 */
+  owner?: string;
+  state?: InviteState | "all";
+}
+
+export async function listInvites(filter: InviteFilter = {}): Promise<Invite[]> {
+  const r = await request<{ invites: InviteWire[] }>("/api/admin/invites", {
+    query: {
+      kind: filter.kind && filter.kind !== "all" ? filter.kind : undefined,
+      owner: filter.owner?.trim() || undefined,
+      state: filter.state && filter.state !== "all" ? filter.state : undefined,
+    },
+  });
+  return r.invites.map(inviteIn);
 }
 
 /** 明文码只在这次响应里出现一次。 */
@@ -153,6 +276,65 @@ export async function createInvite(body: { label: string; maxUses: number; expir
   return { invite: inviteIn(r.invite), code: r.code };
 }
 
+/** 批量一次性码(1–100,每个 max_uses = 1)。明文码只在这次响应里出现;CSV 在浏览器里生成,服务端不导出。 */
+export async function createInviteBatch(body: { count: number; label: string; expiresAt: string | null }): Promise<{ invites: Invite[]; codes: string[] }> {
+  const r = await request<{ invites: InviteWire[]; codes: string[] }>("/api/admin/invites/batch", {
+    method: "POST",
+    json: { count: body.count, label: body.label, expires_at: body.expiresAt },
+  });
+  return { invites: r.invites.map(inviteIn), codes: r.codes };
+}
+
 export async function revokeInvite(id: number): Promise<void> {
   await request(`/api/admin/invites/${id}`, { method: "DELETE", as: "none" });
 }
+
+export interface Redemption {
+  userId: number | null;
+  username: string | null;
+  nickname: string | null;
+  redeemedAt: string;
+  disabled: boolean;
+}
+
+/** 谁用过这个码(新在前)。已删除的兑换者保留一行,身份字段为空(R-I11)。 */
+export async function listRedemptions(id: number): Promise<Redemption[]> {
+  const r = await request<{ redemptions: Array<{ user_id: number | null; username: string | null; nickname: string | null; redeemed_at: string; disabled: boolean }> }>(
+    `/api/admin/invites/${id}/redemptions`,
+  );
+  return r.redemptions.map((x) => ({ userId: x.user_id, username: x.username, nickname: x.nickname, redeemedAt: x.redeemed_at, disabled: x.disabled }));
+}
+
+/** 用户的邀请码状态:只有用量与计数,从不包含码本身(R-I10)。 */
+export interface UserInviteStatus {
+  current: { uses: number; cap: number; createdAt: string; revokedAt: string | null; state: InviteState } | null;
+  historyCodes: number;
+  redemptions: number;
+  disabledInvitees: number;
+  invitees: Array<{ displayName: string; redeemedAt: string; disabled: boolean }>;
+}
+
+export async function getUserInvite(id: Id): Promise<UserInviteStatus> {
+  const r = await request<{
+    current: { uses: number; cap: number; created_at: string; revoked_at: string | null; state: InviteState } | null;
+    history_codes: number;
+    redemptions: number;
+    disabled_invitees: number;
+    invitees: Array<{ display_name: string; redeemed_at: string; disabled: boolean }>;
+  }>(`/api/admin/users/${enc(id)}/invite`);
+  return {
+    current: r.current && { uses: r.current.uses, cap: r.current.cap, createdAt: r.current.created_at, revokedAt: r.current.revoked_at, state: r.current.state },
+    historyCodes: r.history_codes,
+    redemptions: r.redemptions,
+    disabledInvitees: r.disabled_invitees,
+    invitees: r.invitees.map((x) => ({ displayName: x.display_name, redeemedAt: x.redeemed_at, disabled: x.disabled })),
+  };
+}
+
+/** 收回用户当前的码(operator + 二次验证;原因必填,写入审计)。 */
+export const revokeUserInvite = (id: Id, reason: string) =>
+  request(`/api/admin/users/${enc(id)}/invite/revoke`, { method: "POST", json: { reason }, as: "none" });
+
+/** 更换用户的码:旧码立即失效,新码沿用已用次数且只显示给用户本人(管理员看不到)。 */
+export const rotateUserInvite = (id: Id, reason: string) =>
+  request(`/api/admin/users/${enc(id)}/invite/rotate`, { method: "POST", json: { reason }, as: "none" });

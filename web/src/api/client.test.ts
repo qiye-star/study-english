@@ -43,6 +43,21 @@ describe("ApiClient", () => {
     expect(mock.calls[0].headers.has("Content-Type")).toBe(false);
   });
 
+  it("uploads an avatar as multipart with the bearer token and no JSON content type", async () => {
+    const { api, mock } = make({
+      "POST /api/me/avatar": () => json({ avatar_url: "/api/avatars/00000000000000000000000000000000" }),
+      "DELETE /api/me/avatar": () => new Response(null, { status: 204 }),
+    });
+    const form = new FormData();
+    form.append("file", new Blob(["x"], { type: "image/jpeg" }), "avatar.jpg");
+    expect(await api.request("POST", "/api/me/avatar", { form })).toEqual({ avatarUrl: "/api/avatars/00000000000000000000000000000000" });
+    expect(mock.calls[0].headers.get("Authorization")).toBe("Bearer tok");
+    expect(mock.calls[0].headers.has("Content-Type")).toBe(false);
+    expect(mock.calls[0].body).toBe(form);
+    expect(await api.request("DELETE", "/api/me/avatar")).toEqual({});
+    expect(mock.calls[1].method).toBe("DELETE");
+  });
+
   it("throws ApiError carrying the server message", async () => {
     const { api } = make({ "POST /api/sessions": () => json({ error: "Invalid username or password" }, 401) });
     await expect(api.request("POST", "/api/sessions", { json: {}, auth: false })).rejects.toMatchObject({
@@ -124,12 +139,120 @@ describe("ApiClient", () => {
     });
     expect(await api.login("alice", "pw")).toEqual({ id: "12345678", name: "alice", createdAt: "t", accessToken: "new" });
     expect(JSON.parse(mock.calls[0].body as string)).toEqual({ provider: "password", username: "alice", password: "pw" });
-    await api.register("bob", "password1", "inv");
+    await api.register({ username: "bob", password: "password1", inviteCode: "inv" });
     expect(JSON.parse(mock.calls[1].body as string)).toEqual({ username: "bob", password: "password1", invite_code: "inv" });
-    await api.register("carol", "password1");
+    await api.register({ username: "carol", password: "password1" });
     expect(JSON.parse(mock.calls[2].body as string)).toEqual({ username: "carol", password: "password1" });
     expect((await api.me()).name).toBe("alice");
     expect(await api.getConfig("tts_providers_v2")).toEqual({ enjoyai: { models: ["openai/tts-1"] } });
     expect(mock.calls[4].headers.has("Authorization")).toBe(false);
+  });
+
+  it("logout deletes the current server session with the bearer token and accepts an empty 204", async () => {
+    const { api, mock } = make({ "DELETE /api/sessions/current": () => new Response(null, { status: 204 }) });
+    await expect(api.logout()).resolves.toBeUndefined();
+    expect(mock.calls[0].method).toBe("DELETE");
+    expect(mock.calls[0].url.pathname).toBe("/api/sessions/current");
+    expect(mock.calls[0].headers.get("Authorization")).toBe("Bearer tok");
+  });
+
+  it("changePassword posts snake_case keys and returns the rotated access token", async () => {
+    const { api, mock } = make({ "POST /api/me/password": () => json({ access_token: "rotated" }) });
+    const res = await api.changePassword("old-password", "new-password1");
+    expect(res).toEqual({ accessToken: "rotated" });
+    expect(mock.calls[0].method).toBe("POST");
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ current_password: "old-password", new_password: "new-password1" });
+  });
+
+  it("updateMe patches the nickname (null clears it) and returns the profile", async () => {
+    const { api, mock } = make({
+      "PATCH /api/me": () => json({ id: "12345678", name: "alice", created_at: "t", nickname: "小明", display_name: "小明" }),
+    });
+    const me = await api.updateMe({ nickname: "小明" });
+    expect(me).toEqual({ id: "12345678", name: "alice", createdAt: "t", nickname: "小明", displayName: "小明" });
+    expect(mock.calls[0].method).toBe("PATCH");
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ nickname: "小明" });
+    await api.updateMe({ nickname: null });
+    expect(JSON.parse(mock.calls[1].body as string)).toEqual({ nickname: null });
+  });
+
+  it("me() tolerates a response without nickname or display_name (fields are optional)", async () => {
+    const { api } = make({ "GET /api/me": () => json({ id: "12345678", name: "alice", created_at: "t" }) });
+    const me = await api.me();
+    expect(me.nickname).toBeUndefined();
+    expect(me.displayName).toBeUndefined();
+    expect(me.name).toBe("alice");
+  });
+
+  it("a 403 email_binding_required calls onBindingRequired once and not onUnauthorized", async () => {
+    const onUnauthorized = vi.fn();
+    const onBindingRequired = vi.fn();
+    const { api } = make(
+      { "GET /api/conversations": () => json({ error: "email_binding_required" }, 403) },
+      { onUnauthorized, onBindingRequired },
+    );
+    await expect(api.request("GET", "/api/conversations")).rejects.toMatchObject({ status: 403 });
+    expect(onBindingRequired).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("registers with email, code, nickname as snake_case keys", async () => {
+    const user = { id: "12345678", name: "dan", created_at: "t", access_token: "new" };
+    const { api, mock } = make({ "POST /api/users": () => json(user) });
+    await api.register({ username: "dan", password: "password1", email: "dan@example.com", emailCode: "123456", nickname: "Dan", inviteCode: "inv" });
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({
+      username: "dan", password: "password1", email: "dan@example.com", email_code: "123456", nickname: "Dan", invite_code: "inv",
+    });
+    expect(mock.calls[0].headers.has("Authorization")).toBe(false);
+  });
+
+  it("sends the captcha payload only in the X-Captcha header, never in the URL or the JSON body", async () => {
+    const { api, mock } = make({ "POST /api/email/code": () => json({ ok: true, cooldown_seconds: 60 }) });
+    await api.request("POST", "/api/email/code", { json: { email: "a@example.com", purpose: "register" }, auth: false, captcha: "CAP-PAYLOAD" });
+    const call = mock.calls[0];
+    expect(call.headers.get("X-Captcha")).toBe("CAP-PAYLOAD");
+    expect(call.url.toString()).not.toContain("CAP-PAYLOAD");
+    expect(String(call.body)).not.toContain("CAP-PAYLOAD");
+    expect(JSON.parse(call.body as string)).toEqual({ email: "a@example.com", purpose: "register" });
+  });
+
+  it("sends no X-Captcha header when no captcha is given", async () => {
+    const { api, mock } = make({ "GET /api/me": () => json({}) });
+    await api.request("GET", "/api/me");
+    expect(mock.calls[0].headers.has("X-Captcha")).toBe(false);
+  });
+
+  it("login sends the captcha header and keeps the body as provider, username, password", async () => {
+    const { api, mock } = make({ "POST /api/sessions": () => json({ id: "1", name: "alice", created_at: "t", access_token: "x" }) });
+    await api.login("alice", "pw", "P");
+    expect(mock.calls[0].headers.get("X-Captcha")).toBe("P");
+    expect(JSON.parse(mock.calls[0].body as string)).toEqual({ provider: "password", username: "alice", password: "pw" });
+  });
+
+  it("register sends the captcha header and no captcha key in the body", async () => {
+    const { api, mock } = make({ "POST /api/users": () => json({ id: "1", name: "dan", created_at: "t", access_token: "x" }) });
+    await api.register({ username: "dan", password: "password1" }, "P");
+    expect(mock.calls[0].headers.get("X-Captcha")).toBe("P");
+    const body = JSON.parse(mock.calls[0].body as string);
+    expect(body).toEqual({ username: "dan", password: "password1" });
+    expect(Object.keys(body)).not.toContain("captcha");
+  });
+
+  it("captchaConfig reads the public mode without auth", async () => {
+    const { api, mock } = make({ "GET /api/captcha/config": () => json({ mode: "adaptive" }) });
+    expect(await api.captchaConfig()).toEqual({ mode: "adaptive" });
+    expect(mock.calls[0].headers.has("Authorization")).toBe(false);
+  });
+
+  it("a 428 captcha_required is a plain ApiError: no sign-out and no binding redirect", async () => {
+    const onUnauthorized = vi.fn();
+    const onBindingRequired = vi.fn();
+    const { api } = make(
+      { "POST /api/sessions": () => json({ error: "captcha_required" }, 428) },
+      { onUnauthorized, onBindingRequired, getToken: () => null },
+    );
+    await expect(api.login("alice", "pw")).rejects.toMatchObject({ status: 428, message: "captcha_required" });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(onBindingRequired).not.toHaveBeenCalled();
   });
 });

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import WORDBOOK_NEW_BOUNDS, WORDBOOK_REVIEW_BOUNDS, Settings
 from app.models import WordbookEnrollment, WordbookEvent, WordbookReport, iso_utc
 from app.services.usage import local_day, utc_day  # 用量上限按 UTC 日(review m4);计划与事件 day 仍按本地日
+from app.services.scheduling import SchedulingPolicy, policy_for
 from app.services.vocabulary import INTERVAL_DAYS, apply_lapse, apply_review, normalize_word
 from app.wordbook import plan as planning
 from app.wordbook import learned
@@ -21,8 +22,9 @@ from app.wordbook import recall, store
 from app.wordbook.books import BOOKS, BookSpec, book_by_id, enabled_books
 from app.wordbook.cloze import ClozeSet, build_set, line_for, set_id_for
 from app.wordbook.entry import WordCard, meaning_line
-from app.wordbook.grading import grade_blank, srs_grade, worst
+from app.wordbook.grading import grade_blank, review_grade, srs_grade, worst
 from app.wordbook.index import BookIndex, DataUnavailable, DictionaryStore
+from app.wordbook.examples import provider_for
 from app.wordbook.plan import GoalLimits, Known
 from app.wordbook.quiz import (CHOICE_QTYPES, Question, build_question, candidate_keys, check_choice, correct_option,
                                pick_distractors, pick_qtype, question_rng, use_recall, free_choice_qtype, free_spellable)
@@ -262,8 +264,11 @@ class AnswerInput:
 
 
 def question_out(q: Question) -> dict:
-    return {"key": q.key, "qtype": q.qtype, "prompt": dict(q.prompt),
-            "options": list(q.options) if q.options is not None else None, "length": q.length}
+    out = {"key": q.key, "qtype": q.qtype, "prompt": dict(q.prompt),
+           "options": list(q.options) if q.options is not None else None, "length": q.length}
+    if q.clip is not None:  # L4 R16: only the learner's own clip; old clients ignore the extra key
+        out["clip"] = {"item_id": q.clip.item_id, "start_ms": q.clip.start_ms, "end_ms": q.clip.end_ms}
+    return out
 
 
 async def _active(session: AsyncSession, ds: DictionaryStore, user_id: int,
@@ -311,12 +316,12 @@ async def _choice_extras(ds: DictionaryStore, user_id: int, p: AnswerInput, card
 
 
 async def _question(ds: DictionaryStore, index: BookIndex, card: WordCard, qtype: str, rng, *,
-                    user_id: int | None = None) -> Question:
+                    user_id: int | None = None, example=None) -> Question:
     distractors: list[WordCard] = []
     if qtype in CHOICE_QTYPES:
         pool = await cards_or_fail(ds, index.book_id, candidate_keys(index, card.key, rng))
         distractors = pick_distractors(card, list(pool.values()), qtype, rng)
-    question = build_question(qtype, card, distractors, rng)
+    question = build_question(qtype, card, distractors, rng, example=example)
     if user_id is not None and qtype in OPTION_INFO_QTYPES and question.options is not None:
         # R-A1:出题时记下「选项原文 -> 词键」(与题面同序),答题后回填 option_info;对不上(重复文本等)就不记
         owners = {_option_text(qtype, c): c.key for c in (card, *distractors)}
@@ -358,19 +363,25 @@ async def review_batch(session: AsyncSession, ds: DictionaryStore, user_id: int,
         rng = question_rng(user_id, card.key, row.reps)
         qtype = "recall" if recall_on and use_recall(user_id, card.key, row.reps, row.box) else pick_qtype(
             row.box, card, rng, tts=tts)
-        questions.append(question_out(await _question(ds, index, card, qtype, rng, user_id=user_id)))
+        example = None  # L4 R13/R15: only a cloze question may take the learner's own sentence (port: no DB for dictionary)
+        if qtype == "cloze":
+            example = await provider_for(settings).cloze_example(session, user_id, card, row.reps)
+        questions.append(question_out(await _question(ds, index, card, qtype, rng, user_id=user_id, example=example)))
     return {"book_id": e.book_id, "questions": questions, "cards": [card_out(c, ds) for c in cards]}
 
 
-async def _write_srs(session: AsyncSession, user_id: int, row: Known, grade: str, now) -> tuple[bool, bool]:
+async def _write_srs(session: AsyncSession, user_id: int, row: Known, grade: str, now,
+                     policy: SchedulingPolicy) -> tuple[bool, bool]:
     """(applied, due)。到期 → 一次复习(reps + 1,产生 vocab_review);未到期只有答错才改盒(R-W5),
-    且走 apply_lapse:不加 reps,不产生段位事件(review B1);盒 0 已是「忘了」,不写。"""
+    且走 apply_lapse:不加 reps,不产生段位事件(review B1);盒 0 已是「忘了」,不写。
+    排期引擎由 policy 决定(L3 R10:同一用户同一时刻只有一种引擎)。"""
     due = row.due_at <= now
     if due:
         return await apply_review(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps,
-                                  grade=grade, now=now), True
+                                  grade=grade, now=now, policy=policy), True
     if grade == "forgot":
-        return await apply_lapse(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps, now=now), False
+        return await apply_lapse(session, user_id, row.item_id, seen_box=row.box, seen_reps=row.reps, now=now,
+                                 policy=policy), False
     return False, False
 
 
@@ -468,20 +479,22 @@ async def _answer(session: AsyncSession, ds: DictionaryStore, user_id: int, sett
         result = grade_blank(card.word, card.key, p.typed, hinted=p.hinted)
         outcome, credit = result.outcome, result.credit
         diff = [asdict(d) for d in result.diff] or None
-    grade = srs_grade(outcome, p.hinted)
-    applied, item_id, kind = False, row.item_id if row else None, "practice"
+    grade = srs_grade(outcome, p.hinted)  # the response field stays three-valued (L3 R5)
+    write_grade = review_grade(outcome, p.hinted, qtype=p.qtype, elapsed_ms=p.elapsed_ms, length=len(card.word))
+    applied, item_id, kind, reviewed_at = False, row.item_id if row else None, "practice", None
     if ctx is not None:
         kind = await _learn_kind(session, user_id, card.key)
         item_id = await _create_learned(session, user_id, p.book_id, card, 0, now, ctx)
         applied = True
     elif p.mode == "review" and row is not None:
-        applied, due = await _write_srs(session, user_id, row, grade, now)
+        applied, due = await _write_srs(session, user_id, row, write_grade, now, policy_for(settings, user_id))
         kind = "review" if due and applied else "practice"
+        reviewed_at = now if applied else None
     elif p.mode == "learn" and row is not None and row.reps == 0 and p.qtype in CHOICE_QTYPES:
         applied = await _learn_day_quiz(session, user_id, row, card.key, day, outcome == "correct", now,
                                         qtype=p.qtype)
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
-                          qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now)
+                          qtype=p.qtype, outcome=outcome, credit=credit, day=day, now=now, reviewed_at=reviewed_at)
     await session.commit()
     learning_events.publish(learning_events.WordAnswered(
         user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=p.qtype, outcome=outcome, credit=credit,
@@ -569,6 +582,7 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
     seed = await _spot_seed(session, user_id, p.book_id, row)  # 私有种子:客户端算不出哪些词会被抽查(P-R1)
     pct = settings.wordbook_spot_check_pct
     applied, item_id, kind, outcome, spot = False, row.item_id if row else None, "practice", rating, False
+    reviewed_at = None
     if ctx is not None:
         decision = recall.learn_decision(rating, recall.needs_check(
             rating, seed=seed, user_id=user_id, key=card.key, reps=0, pct=pct, elapsed_ms=p.elapsed_ms))
@@ -592,12 +606,14 @@ async def _rating_answer(session: AsyncSession, ds: DictionaryStore, user_id: in
             await session.commit()  # 只扣了作答次数;不写盒、不记事件(R-R6)
             return _answer_out(False, "pending", None, card, None, None, row, False, rating="know", spot_check=True,
                                check=question_out(q))
-        applied, due = await _write_srs(session, user_id, row, recall.GRADE[outcome], now)
+        applied, due = await _write_srs(session, user_id, row, recall.GRADE[outcome], now,
+                                        policy_for(settings, user_id))
         kind = "review" if due and applied else "practice"
+        reviewed_at = now if applied else None
     eff = recall.as_rating(outcome)
     await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key, item_id=item_id,
                           qtype=recall.RECALL_QTYPE, outcome=outcome, credit=100 if eff == "know" else 0, day=day,
-                          now=now)
+                          now=now, reviewed_at=reviewed_at)
     await session.commit()
     learning_events.publish(learning_events.WordAnswered(
         user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=recall.RECALL_QTYPE, outcome=outcome,
@@ -738,14 +754,16 @@ async def spell_submit(session: AsyncSession, ds: DictionaryStore, user_id: int,
         outcome = worst(r.outcome for r in results)
         hinted = any(h for _, h in line.answers)
         credit = round(sum(r.credit for r in results) / len(results))
-        row, kind = known.get(card.key), "blank"
+        row, kind, reviewed_at = known.get(card.key), "blank", None
         if row is not None and card.key not in seen:  # 同一词在一次提交里只写一次盒子
-            applied, due = await _write_srs(session, user_id, row, srs_grade(outcome, hinted), now)
+            applied, due = await _write_srs(session, user_id, row, srs_grade(outcome, hinted), now,
+                                            policy_for(settings, user_id))
             kind = "review" if due and applied else "blank"
+            reviewed_at = now if applied else None
         seen.add(card.key)
         await store.add_event(session, user_id=user_id, book_id=p.book_id, kind=kind, word=card.key,
                               item_id=row.item_id if row else None, qtype=SPELL_QTYPE, outcome=outcome,
-                              credit=credit, day=day, now=now)
+                              credit=credit, day=day, now=now, reviewed_at=reviewed_at)
         answered.append(learning_events.WordAnswered(
             user_id=user_id, book_id=p.book_id, word=card.key, kind=kind, qtype=SPELL_QTYPE, outcome=outcome,
             credit=credit, at=now))

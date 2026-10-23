@@ -1,0 +1,127 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { ClipPicker, clipMark, clipReadiness, type PickSeg } from "./clip-picker";
+
+const LIMITS = { maxLines: 12, maxMs: 90_000 };
+const segs = (n: number, lenMs = 5000): PickSeg[] =>
+  Array.from({ length: n }, (_, i) => ({
+    idx: i, startMs: i * lenMs, endMs: (i + 1) * lenMs, speaker: i % 2 === 0 ? "A" : "B", text: `line ${i}`,
+  })) as PickSeg[];
+
+describe("clip picker (plan L5 W8)", () => {
+  it("first tap starts, second tap ends, and a third tap starts over", () => {
+    const onSelect = vi.fn();
+    const { rerender } = render(<ClipPicker segments={segs(4)} selection={null} role="A" limits={LIMITS} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /line 1/ }));
+    expect(onSelect).toHaveBeenLastCalledWith({ from: 1, to: null });
+    rerender(<ClipPicker segments={segs(4)} selection={{ from: 1, to: null }} role="A" limits={LIMITS} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /line 3/ }));
+    expect(onSelect).toHaveBeenLastCalledWith({ from: 1, to: 3 });
+    rerender(<ClipPicker segments={segs(4)} selection={{ from: 1, to: 3 }} role="A" limits={LIMITS} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /line 0/ }));
+    expect(onSelect).toHaveBeenLastCalledWith({ from: 0, to: null });
+  });
+
+  it("the footer counts sentences and seconds for a finished range", () => {
+    render(<ClipPicker segments={segs(4)} selection={{ from: 0, to: 2 }} role="A" limits={LIMITS} onSelect={() => {}} />);
+    expect(screen.getByText("3 sentences · 15 s")).toBeInTheDocument();
+  });
+
+  it("readiness reports the server's own codes (too long, role missing) and is ok otherwise", () => {
+    const long = segs(13, 1000);
+    expect(clipReadiness(long, { from: 0, to: 12 }, "A", LIMITS).problem).toBe("clip_too_long");
+    expect(clipReadiness(segs(4), { from: 1, to: 1 }, "A", LIMITS).problem).toBe("role_missing");
+    expect(clipReadiness(segs(4), { from: 0, to: 1 }, "A", LIMITS)).toMatchObject({ ok: true, problem: null });
+    expect(clipReadiness(segs(4), { from: 0, to: 0 }, "A", LIMITS).ok).toBe(true);
+    expect(clipReadiness(segs(4), null, "A", LIMITS).ok).toBe(false);
+  });
+
+  it("an over-long clip shows the reason on screen", () => {
+    render(<ClipPicker segments={segs(13, 1000)} selection={{ from: 0, to: 12 }} role="A" limits={LIMITS} onSelect={() => {}} />);
+    expect(screen.getByText("This clip is too long. Pick fewer sentences.")).toBeInTheDocument();
+  });
+
+  it("renders a marker slot next to each sentence", () => {
+    render(<ClipPicker segments={segs(2)} selection={null} role="A" limits={LIMITS} onSelect={() => {}} renderMarker={(i) => <span>mark {i}</span>} />);
+    expect(screen.getByText("mark 1")).toBeInTheDocument();
+  });
+
+  it("tapping a marker button never changes the clip, and a marker is never nested inside a sentence button", () => {
+    const onSelect = vi.fn();
+    const onMark = vi.fn();
+    const { container } = render(
+      <ClipPicker
+        segments={segs(3)} selection={{ from: 0, to: 2 }} role="A" limits={LIMITS} onSelect={onSelect}
+        renderMarker={(i) => <button type="button" onClick={onMark}>mark {i}</button>}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "mark 1" }));
+    expect(onMark).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(container.querySelectorAll("button button")).toHaveLength(0);
+  });
+
+  it("shows the cover above the sentences when there is one, and nothing when there is not", () => {
+    const { container, rerender } = render(
+      <ClipPicker segments={segs(2)} selection={null} role="A" limits={LIMITS} onSelect={() => {}} poster="blob:cover-1" />,
+    );
+    const cover = container.querySelector("img");
+    expect(cover).toHaveAttribute("src", "blob:cover-1");
+    expect(cover).toHaveAttribute("alt", "");
+    expect(cover?.compareDocumentPosition(screen.getByRole("button", { name: /line 0/ }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    rerender(<ClipPicker segments={segs(2)} selection={null} role="A" limits={LIMITS} onSelect={() => {}} poster={null} />);
+    expect(container.querySelector("img")).toBeNull();
+  });
+});
+
+describe("selection design A (gentle)", () => {
+  const marks = (sel: Parameters<typeof clipMark>[0], n = 4) => Array.from({ length: n }, (_, i) => clipMark(sel, i));
+
+  it("clipMark names each row's part in the selection", () => {
+    expect(marks(null)).toEqual(["none", "none", "none", "none"]);
+    expect(marks({ from: 1, to: null })).toEqual(["none", "half", "none", "none"]);
+    expect(marks({ from: 1, to: 3 })).toEqual(["none", "start", "mid", "end"]);
+    expect(marks({ from: 2, to: 2 })).toEqual(["none", "none", "single", "none"]);
+  });
+
+  const rowOf = (name: RegExp) => screen.getByRole("button", { name }).closest("li") as HTMLElement;
+
+  it("each row carries data-sel and the sentence button is pressed for every selected row, half included", () => {
+    render(<ClipPicker segments={segs(4)} selection={{ from: 1, to: 3 }} role="A" limits={LIMITS} onSelect={() => {}} />);
+    expect(rowOf(/line 0/)).toHaveAttribute("data-sel", "none");
+    expect(rowOf(/line 1/)).toHaveAttribute("data-sel", "start");
+    expect(rowOf(/line 2/)).toHaveAttribute("data-sel", "mid");
+    expect(rowOf(/line 3/)).toHaveAttribute("data-sel", "end");
+    expect(screen.getByRole("button", { name: /line 0/ })).toHaveAttribute("aria-pressed", "false");
+    for (const n of [1, 2, 3]) expect(screen.getByRole("button", { name: new RegExp(`line ${n}`) })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("start, end and single rows say so; middle rows show a check", () => {
+    const { rerender } = render(<ClipPicker segments={segs(4)} selection={{ from: 1, to: 3 }} role="A" limits={LIMITS} onSelect={() => {}} />);
+    expect(screen.getByRole("button", { name: /line 1/ })).toHaveAccessibleName(/Start/);
+    expect(screen.getByRole("button", { name: /line 3/ })).toHaveAccessibleName(/End/);
+    expect(rowOf(/line 2/).querySelector('[data-testid="clip-check"]')).not.toBeNull();
+    expect(screen.getAllByTestId("clip-check")).toHaveLength(1);
+    rerender(<ClipPicker segments={segs(4)} selection={{ from: 2, to: 2 }} role="A" limits={LIMITS} onSelect={() => {}} />);
+    expect(screen.getByRole("button", { name: /line 2/ })).toHaveAccessibleName(/Start–End/);
+  });
+
+  it("a half selection presses the start row, marks it Start and tells the user what to do next", () => {
+    render(<ClipPicker segments={segs(4)} selection={{ from: 1, to: null }} role="A" limits={LIMITS} onSelect={() => {}} />);
+    expect(rowOf(/line 1/)).toHaveAttribute("data-sel", "half");
+    expect(screen.getByRole("button", { name: /line 1/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /line 1/ })).toHaveAccessibleName(/Start/);
+    expect(screen.getByText("Start set at sentence 2. Tap another sentence to end the clip.")).toBeInTheDocument();
+    expect(screen.queryByText("No clip selected yet")).toBeNull();
+  });
+
+  it("a marker button beside a selected row stays a sibling of the sentence button", () => {
+    const { container } = render(
+      <ClipPicker
+        segments={segs(3)} selection={{ from: 0, to: 2 }} role="A" limits={LIMITS} onSelect={() => {}}
+        renderMarker={(i) => <button type="button">mark {i}</button>}
+      />,
+    );
+    expect(container.querySelectorAll("button button")).toHaveLength(0);
+  });
+});

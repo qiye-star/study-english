@@ -74,6 +74,69 @@ def prune(settings) -> int:
     return removed
 
 
+REMOTE_PREFIX = "backups/"
+
+
+def remote_of(blobs):
+    """The object store that keeps backup copies: the S3 primary (also behind a read fallback), else None. A local
+    primary keeps backups where they always were (plan L1 R13: no second copy on the same disk)."""
+    store = getattr(blobs, "primary", blobs)
+    return store if getattr(store, "name", "") == "s3" else None
+
+
+async def list_all(settings, blobs) -> list[dict]:
+    """Local and remote copies merged by name; `where` says which copies exist (plan L1 R13)."""
+    local = {item["name"]: item for item in list_backups(settings)}
+    remote_names: set[str] = set()
+    remote = remote_of(blobs)
+    if remote is not None:
+        async for info in remote.list(REMOTE_PREFIX):
+            name = info.key[len(REMOTE_PREFIX):]
+            if BACKUP_RE.fullmatch(name):
+                remote_names.add(name)
+    out = []
+    for name in sorted(set(local) | remote_names, reverse=True):
+        item = dict(local.get(name) or {"name": name, "bytes": 0, "created_at": None})
+        item["where"] = "both" if name in local and name in remote_names else ("local" if name in local else "remote")
+        out.append(item)
+    return out
+
+
+async def exists_anywhere(settings, blobs, name: str) -> bool:
+    if path_of(settings, name).is_file():
+        return True
+    remote = remote_of(blobs)
+    return remote is not None and await remote.stat(REMOTE_PREFIX + _check(name)) is not None
+
+
+async def delete_everywhere(settings, blobs, name: str) -> None:
+    """Deletes the local and the remote copy. FileNotFoundError when neither exists."""
+    found = False
+    if path_of(settings, name).is_file():
+        path_of(settings, name).unlink()
+        found = True
+    remote = remote_of(blobs)
+    if remote is not None:
+        found = await remote.delete(REMOTE_PREFIX + _check(name)) or found
+    if not found:
+        raise FileNotFoundError(name)
+
+
+async def _prune_remote(blobs, keep: int) -> int:
+    remote = remote_of(blobs)
+    if remote is None:
+        return 0
+    names = sorted([info.key[len(REMOTE_PREFIX):] async for info in remote.list(REMOTE_PREFIX)], reverse=True)
+    removed = 0
+    for name in names[max(1, keep):]:
+        try:
+            if await remote.delete(REMOTE_PREFIX + name):
+                removed += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("backup prune failed remote code=%s", getattr(exc, "code", type(exc).__name__))
+    return removed
+
+
 async def create_backup(app, now: datetime) -> dict:
     if not supported(app):
         raise BackupUnsupported()
@@ -88,7 +151,18 @@ async def create_backup(app, now: datetime) -> dict:
     async with app.state.engine.connect() as conn:
         conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
         await conn.exec_driver_sql("VACUUM INTO ?", (str(path),))
+    blobs = app.state.storage
+    remote = remote_of(blobs)
+    if remote is not None:  # the local file is kept: an upload failure never fails the backup (plan L1 R13)
+        try:
+            await remote.put_file(REMOTE_PREFIX + path.name, path, content_type="application/x-sqlite3")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("backup upload failed code=%s", getattr(exc, "code", type(exc).__name__))
     prune(settings)
+    try:
+        await _prune_remote(blobs, settings.backup_keep)
+    except Exception as exc:  # noqa: BLE001 - the new backup exists; a failed prune is retried next time
+        logger.warning("backup prune failed remote code=%s", getattr(exc, "code", type(exc).__name__))
     return _out(path)
 
 

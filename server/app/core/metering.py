@@ -26,12 +26,12 @@ logger = logging.getLogger(__name__)
 _user: ContextVar[int | None] = ContextVar("metering_user", default=None)
 _feature: ContextVar[str] = ContextVar("metering_feature", default="other")
 
-KINDS = ("llm", "tts", "stt", "asr_stream", "assess_azure", "assess_xfyun", "probe")
+KINDS = ("llm", "tts", "stt", "asr_stream", "assess_azure", "assess_xfyun", "probe", "email")
 UNITS = ("tokens", "bytes", "chars", "audio_ms", "calls")
 # usage_daily has no unit column: a rolled-up bucket keeps only the units of its kind's main unit
 # (an llm stream's bytes count as a call, not as tokens).
 DAILY_UNIT = {"llm": "tokens", "tts": "chars", "stt": "audio_ms", "asr_stream": "audio_ms",
-              "assess_xfyun": "audio_ms", "assess_azure": "calls", "probe": "calls"}
+              "assess_xfyun": "audio_ms", "assess_azure": "calls", "probe": "calls", "email": "calls"}
 FEATURE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/api/ai/chat", "chat"),
     ("/api/ai/audio", "audio"),
@@ -43,6 +43,8 @@ FEATURE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("/api/wordbook", "wordbook"),
     ("/api/agents", "agents"),
     ("/api/library", "library"),
+    ("/api/email", "account"),  # verification codes (accounts v2)
+    ("/api/me/email", "account"),
     ("/api/admin", "admin"),
 )
 _PROVIDER_SUFFIXES = (

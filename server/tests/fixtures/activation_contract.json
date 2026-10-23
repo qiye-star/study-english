@@ -1,0 +1,47 @@
+{
+  "config": {
+    "enabled": true
+  },
+  "words_dormant": {
+    "state": "dormant",
+    "items": [
+      {
+        "word": "talk",
+        "book_id": "junior",
+        "learned_at": "2026-09-11T12:00:00+00:00",
+        "last_used_at": null,
+        "use_count": 0
+      }
+    ],
+    "counts": {
+      "dormant": 1,
+      "sprouting": 0,
+      "active": 1
+    },
+    "next_page": null
+  },
+  "words_active": {
+    "state": "active",
+    "items": [
+      {
+        "word": "walk",
+        "book_id": "junior",
+        "learned_at": "2026-10-09T12:00:00+00:00",
+        "last_used_at": "2026-10-20T12:00:00+00:00",
+        "use_count": 2
+      }
+    ],
+    "counts": {
+      "dormant": 1,
+      "sprouting": 0,
+      "active": 1
+    },
+    "next_page": null
+  },
+  "prompt_hint": {
+    "words": [
+      "talk"
+    ],
+    "block": "Words the learner knows but has not used yet: talk. Give them a natural chance to use one or two in the conversation; do not list them or quiz them."
+  }
+}

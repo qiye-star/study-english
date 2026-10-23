@@ -83,7 +83,7 @@ async def test_room_out_v2_and_pending_requests(app):
         s.add(RoomJoinRequest(id="q2", room_id=room.id, user_id=3, status="denied", created_at=NOW))
         await s.commit()
     assert await store.pending_requests(room.id) == [
-        {"id": "q1", "room_id": room.id, "room_name": "美食", "user_id": 3, "name": "carol", "status": "pending",
+        {"id": "q1", "room_id": room.id, "room_name": "美食", "user_id": 3, "name": "carol", "avatar_url": None, "status": "pending",
          "created_at": "2026-10-10T09:00:00+00:00"}]
 
 
