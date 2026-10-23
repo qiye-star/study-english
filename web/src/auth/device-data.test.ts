@@ -9,8 +9,9 @@ import { COMPOSER_MODE_KEY } from "~/features/chat/composer-mode";
 import { PRACTICE_DRAFT_KEY, WORDBOOK_PREFS_KEY, clearDeviceData } from "./device-data";
 import { PLAYBACK_RATE_KEY, getPlaybackRate, setPlaybackRate } from "~/lib/playback-rate";
 import { kvGet, kvIdleForTests, kvSet } from "~/lib/kv-cache";
-import { GLASS_THEME_KEY } from "~/lib/storage";
+import { GLASS_THEME_KEY, ZH_DEFS_PREF_KEY } from "~/lib/storage";
 import { getGlassTheme, resetGlassThemeMemory } from "~/settings/glass-theme-store";
+import { getZhDefsMode, setZhDefsMode } from "~/settings/zh-defs-pref";
 
 describe("clearDeviceData", () => {
   it("empties the practice draft, lookup cache and TTS blobs, and never throws", async () => {
@@ -61,6 +62,14 @@ describe("clearDeviceData", () => {
     localStorage.setItem(WORDBOOK_PREFS_KEY, JSON.stringify({ showLetterCount: true }));
     clearDeviceData();
     expect(localStorage.getItem(WORDBOOK_PREFS_KEY)).toBeNull();
+  });
+
+  it("forgets the Chinese-definition preference and its in-memory copy at logout", () => {
+    setZhDefsMode("tap");
+    expect(getZhDefsMode()).toBe("tap");
+    clearDeviceData();
+    expect(localStorage.getItem(ZH_DEFS_PREF_KEY)).toBeNull();
+    expect(getZhDefsMode()).toBe("auto");
   });
 
   it("clears the glass theme prefs and resets the in-memory copy (plan 2026-10-15-liquid-glass R-LG9)", () => {

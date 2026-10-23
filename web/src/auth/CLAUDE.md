@@ -7,7 +7,7 @@ Session state and route protection.
 - `require-auth.tsx` — route guard redirecting to `/login`; while `bindingRequired` it sends every other route to `/account/email?required=1` (X26).
 - `email-binding.ts` — `EMAIL_BINDING_PATH` and the pure `emailStatusOf` / `bindingRequiredOf` helpers. `AuthProvider` reads `/api/me` after login and at startup, and a 403 `email_binding_required` sets the flag (`onBindingRequired`). Never import `features/account` from here (X35).
 - `validation.ts` — username/password form rules.
-- `device-data.ts` — `clearDeviceData()` run on logout: practice draft, playback rate, composer mode, grammar revision bump, lookup/hints/TTS caches.
+- `device-data.ts` — `clearDeviceData()` run on logout: practice draft, playback rate, Chinese-definition pref, composer mode, grammar revision bump, lookup/hints/TTS caches.
 
 ## Allowed dependencies
 - `api/`, `lib/`, `settings/`, feature public surfaces (`~/features/<x>`) for cache-clearing hooks only.

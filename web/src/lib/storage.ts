@@ -41,3 +41,6 @@ export const GLASS_THEME_KEY = "enjoy-web.appearance.glass";
 
 /** 朗读音色的本机偏好(按场景:单词 / 句子 / 对话消息,「我的 → 朗读音色」);登出时由 auth/device-data 清除。 */
 export const TTS_VOICE_PREF_KEY = "enjoy-web.tts.voice";
+
+/** 中文释义显示偏好(「我的 → 中文释义」,只在 "tap" 时存);登出时由 auth/device-data 清除。 */
+export const ZH_DEFS_PREF_KEY = "enjoy-web.defs.zh";
