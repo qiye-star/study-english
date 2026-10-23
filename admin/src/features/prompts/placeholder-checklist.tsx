@@ -32,6 +32,7 @@ export function PlaceholderChecklist({ spec, check }: { spec: PromptSpec; check:
         {check.missingBoundaries.length > 0 && <p className="text-bad">{S.missingBoundaries(check.missingBoundaries)}</p>}
 
         {spec.kind === "text" && spec.formatted === false && <p className="text-fg-2">{S.grammarNote}</p>}
+        {spec.key === "chat.daily_greeting" && <p className="text-fg-2">{S.fixedPartsNote}</p>}
 
         {formatted && spec.required.length > 0 && (
           <div>

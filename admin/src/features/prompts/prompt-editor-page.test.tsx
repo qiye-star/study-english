@@ -120,9 +120,25 @@ it("offers a new draft when none exists and rollback from a version", async () =
   expect(editor).toHaveAttribute("readonly");
   expect(screen.getByText(/输出格式由服务端固定追加/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "以此版本新建草稿" }));
-  expect(api.createPromptDraft).toHaveBeenCalledWith("grammar.rules", 1);
+  expect(api.createPromptDraft).toHaveBeenCalledWith("grammar.rules", { fromVersion: 1 });
   await userEvent.click(screen.getByRole("button", { name: "新建草稿" }));
   expect(api.createPromptDraft).toHaveBeenLastCalledWith("grammar.rules");
+  await userEvent.click(screen.getByRole("button", { name: "以默认正文新建草稿" }));
+  expect(api.createPromptDraft).toHaveBeenLastCalledWith("grammar.rules", { fromDefault: true });
+});
+
+it("shows the fixed-parts note and no reset button while nothing is published", async () => {
+  const detail = {
+    spec: { key: "chat.daily_greeting", label: "对话每日问候", kind: "text" as const, required: ["language_rule", "facts"],
+      optional: ["persona"], boundaries: ["<facts>", "</facts>"], maxChars: 4000, formatted: true,
+      sampleFields: ["persona", "language", "facts"] },
+    published: null, versions: [], defaultBody: "{language_rule}<facts>{facts}</facts>", draft: null,
+  };
+  vi.mocked(api.getPrompt).mockResolvedValue(detail);
+  renderAt("chat.daily_greeting");
+  await screen.findByLabelText("提示词正文");
+  expect(screen.queryByRole("button", { name: "以默认正文新建草稿" })).toBeNull(); // nothing published: same as a plain draft
+  expect(screen.getByText(/由服务端固定追加/)).toBeInTheDocument();
 });
 
 it("hides editing from viewers", async () => {
@@ -135,5 +151,5 @@ it("hides editing from viewers", async () => {
 
 it("has no sample labels left for the retired @ai answer prompt", () => {
   for (const retired of ["topic", "asker", "question"]) expect(S.sampleLabels).not.toHaveProperty(retired);
-  expect(Object.keys(S.sampleLabels).sort()).toEqual(["chat", "context", "draft", "level", "text"]);
+  expect(Object.keys(S.sampleLabels).sort()).toEqual(["chat", "context", "draft", "facts", "language", "level", "persona", "text"]);
 });

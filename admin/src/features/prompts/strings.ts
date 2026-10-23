@@ -23,6 +23,7 @@ export const S = {
   draftBy: (who: string, at: string) => `草稿 · ${who} 于 ${at} 保存`,
   unsaved: "有未保存的修改",
   createDraft: "新建草稿",
+  resetToDefault: "以默认正文新建草稿",
   saveDraft: "保存草稿",
   saving: "保存中…",
   deleteDraft: "丢弃草稿",
@@ -47,6 +48,7 @@ export const S = {
   invalidJson: "不是有效的 JSON",
   invalidTemplates: "情景模板格式不对:需要 1–50 项,每项恰有 key / name / description / prompt",
   allGood: "检查通过",
+  fixedPartsNote: "安全前缀与 JSON 输出格式(固定 3 段、长度与强调标记规则)由服务端固定追加,这里改不掉。",
   grammarNote: "语法规则不做占位符替换;输出格式由服务端固定追加,这里改不掉。",
   boundaryNote:
     "学习者文本会被放进边界标签内并转义,删掉标签会让提示词注入防护失效。单独一行写 [[user]] 可把它下面的部分作为用户消息发送(默认模板就是这样);没有这一行时整段作为系统提示。",
@@ -79,6 +81,9 @@ export const S = {
     level: "等级(如 B1)",
     chat: "最近聊天(每行 名字: 内容)",
     draft: "学习者草稿",
+    persona: "角色名与简介",
+    language: "语言:zh / en / bilingual",
+    facts: "学习数据(每行一项)",
   } as Record<string, string>,
   // templates editor
   templatesTitle: "情景模板",

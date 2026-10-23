@@ -136,8 +136,13 @@ export async function getPrompt(key: string): Promise<PromptDetail> {
   };
 }
 
-export async function createPromptDraft(key: string, fromVersion?: number): Promise<PromptDraft> {
-  return toDraft(await request<RawDraft>(path(key, "/draft"), { method: "POST", json: { from_version: fromVersion ?? null } }));
+/** 新建草稿:默认取线上正文;`fromVersion` = 以旧版本为底(回滚);`fromDefault` = 以代码默认正文为底(恢复默认,两者不能同时给)。 */
+export async function createPromptDraft(
+  key: string, opts: { fromVersion?: number; fromDefault?: boolean } = {},
+): Promise<PromptDraft> {
+  const json: Record<string, unknown> = { from_version: opts.fromVersion ?? null };
+  if (opts.fromDefault) json.from_default = true;
+  return toDraft(await request<RawDraft>(path(key, "/draft"), { method: "POST", json }));
 }
 
 export async function savePromptDraft(key: string, body: string, note: string): Promise<PromptDraft> {
