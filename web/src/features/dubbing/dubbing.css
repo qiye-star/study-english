@@ -68,7 +68,15 @@
   padding: 2px 9px 2px 7px;
   white-space: nowrap;
   color: rgb(var(--ink));
+  max-width: 100%;
 }
+/* 名字超长(自定义名最多 24 字)时截断,小标列宽由调用处固定,各行句子文字才能左对齐。 */
+.dub-tag-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dub-tag .dub-dot { flex: none; }
 .dub-tag[data-role-color="red"] { background: var(--dub-role-a-soft); }
 .dub-tag[data-role-color="blue"] { background: var(--dub-role-b-soft); }
 .dub-tag[data-role-color="green"] { background: var(--dub-role-c-soft); }

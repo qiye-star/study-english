@@ -166,7 +166,7 @@ export function DubItemPage() {
                         aria-label={t("web.dubbing.roles.sentenceRole", {
                           n: idx + 1, role: sp ? roleLabel(t, sp, names[sp]) : t("web.dubbing.roles.unassigned"),
                         })}
-                        className="flex min-h-tap min-w-[2.25rem] items-center justify-center rounded-lg bg-white/20 px-1.5 text-[12px] font-semibold"
+                        className="flex min-h-tap w-28 items-center justify-start rounded-lg bg-white/20 px-1.5 text-[12px] font-semibold"
                       >
                         {sp ? <RoleTag role={sp} custom={names[sp]} /> : "·"}
                       </button>

@@ -36,7 +36,7 @@ export function RoleTag({ role, custom }: { role: RoleKey; custom?: string | nul
   return (
     <span data-role-color={ROLE_COLOR[role]} className="dub-tag">
       <RoleDot role={role} />
-      {roleLabel(t, role, custom)}
+      <span className="dub-tag-name">{roleLabel(t, role, custom)}</span>
     </span>
   );
 }
