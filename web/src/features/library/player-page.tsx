@@ -8,6 +8,7 @@ import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { PageHeader } from "~/layout/page-header";
 import { nativeLanguageCode, useSettings } from "~/settings/settings-context";
+import { HOME_PATH } from "~/lib/home-route";
 import { useLibraryConfig } from "./config";
 import { ElasticSlider } from "./fx/elastic-slider";
 import { GlassSurface } from "./fx/glass-surface";
@@ -31,7 +32,7 @@ export function LibraryPlayerPage() {
   const { id = "" } = useParams<{ id: string }>();
   const config = useLibraryConfig();
   if (config === null) return <PageLoading />;
-  if (!config.enabled) return <Navigate to="/practice" replace />;
+  if (!config.enabled) return <Navigate to={HOME_PATH} replace />;
   return <PlayerScreen key={id} id={id} ai={config.ai} />;
 }
 

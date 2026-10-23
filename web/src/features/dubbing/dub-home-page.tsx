@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
 import type { DubbingKit } from "~/features/library";
+import { HOME_PATH } from "~/lib/home-route";
 import { useDubbingConfig } from "./config";
 import { getRoles } from "./dubbing-api";
 import { useDubKit } from "./kit-context";
@@ -54,7 +55,7 @@ export function DubHomePage() {
     }
   }, [items, api]); // eligible 由 items 派生
 
-  if (config && !config.enabled) return <Navigate to="/practice" replace />;
+  if (config && !config.enabled) return <Navigate to={HOME_PATH} replace />;
 
   return (
     <div className="min-h-dvh px-4 pb-24 pt-4">

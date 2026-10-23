@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useAuth } from "~/auth/auth-context";
 import type { DubbingKit } from "~/features/library";
+import { HOME_PATH } from "~/lib/home-route";
 import { ClipPicker, clipReadiness, type PickSeg } from "./clip-picker";
 import type { ClipSelection } from "./clip";
 import { useDubbingConfig } from "./config";
@@ -76,7 +77,7 @@ export function DubItemPage() {
   }, [api, kit, itemId, t]);
 
   const limits = useMemo(() => config?.limits ?? FALLBACK_LIMITS, [config]);
-  if (config && !config.enabled) return <Navigate to="/practice" replace />;
+  if (config && !config.enabled) return <Navigate to={HOME_PATH} replace />;
 
   const rename = (key: RoleKey, name: string | null) => {
     setNames((prev) => {

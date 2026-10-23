@@ -6,6 +6,7 @@ import { translateServerError } from "~/api/error-messages";
 import { CaptchaField, useCaptchaGate } from "~/components/captcha";
 import { useAuth } from "~/auth/auth-context";
 import { normalizeEmail } from "~/auth/validation";
+import { HOME_PATH } from "~/lib/home-route";
 import { ACCOUNT_ERROR_KEYS, resetPassword } from "./account-api";
 import { EmailCodeField } from "./email-code-field";
 
@@ -29,7 +30,7 @@ export function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to="/practice" replace />;
+  if (user) return <Navigate to={HOME_PATH} replace />;
 
   function submit(event: FormEvent) {
     event.preventDefault();

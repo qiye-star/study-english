@@ -1,5 +1,6 @@
 import { Component, type ComponentType, type ReactNode, useSyncExternalStore } from "react";
 import { Navigate } from "react-router-dom";
+import { HOME_PATH } from "~/lib/home-route";
 import {
   ALL_OFF, contributionsFor, getLinkFlags, markSlotRendererLoaded, subscribeLinkFlags, visible, type Contribution,
   type LinkFlags, type PointName, type PointProps, type RouteContribution, type WordActionProps,
@@ -42,9 +43,9 @@ export function WordActions(props: WordActionProps) {
 
 /**
  * 路由贡献的守卫:旗标允许 → 渲染页面;旗标还没加载(仍是 ALL_OFF 本身)→ 先什么都不渲染,
- * 这样刷新或直达 `/me/links` 不会在旗标到达前被兜底路由送回练习页;加载后不允许 → 回练习页(= 今天的兜底行为)。
+ * 这样刷新或直达 `/me/links` 不会在旗标到达前被兜底路由送回首页;加载后不允许 → 回首页(HOME_PATH,= 兜底行为)。
  */
-export function LinkRoute({ route, fallback = "/practice" }: { route: RouteContribution; fallback?: string }) {
+export function LinkRoute({ route, fallback = HOME_PATH }: { route: RouteContribution; fallback?: string }) {
   const flags = useLinkFlags();
   if (visible(route, flags)) {
     const C = route.component;

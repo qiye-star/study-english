@@ -32,6 +32,7 @@ import { LoginPage } from "~/pages/login-page";
 import { MePage } from "~/pages/me-page";
 import { SettingsProvider } from "~/settings/settings-context";
 import { TOAST_CLASSNAMES } from "~/components/toast-classes";
+import { HOME_PATH } from "~/lib/home-route";
 
 /** 外观与主题(计划 2026-10-15-liquid-glass L3):懒加载,不进主包;液态开关关闭时页面自己跳回 /me。 */
 const AppearancePage = lazy(() => import("~/pages/appearance/appearance-page").then((m) => ({ default: m.AppearancePage })));
@@ -118,7 +119,7 @@ export function AppRoutes() {
             {routes}
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/practice" replace />} />
+        <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
       </Route>
     </Routes>
   );

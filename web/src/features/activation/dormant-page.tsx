@@ -7,6 +7,7 @@ import { EmptyState } from "~/components/empty-state";
 import { SegmentedControl, type SegmentedOption } from "~/components/segmented-control";
 import { WordActions } from "~/lib/extension-points-react";
 import { PageHeader } from "~/layout/page-header";
+import { HOME_PATH } from "~/lib/home-route";
 import { ACTIVATION_STATES, fetchWords, type ActivationState, type ActivationWord, type ActivationWords } from "./activation-api";
 import { useActivationConfig } from "./use-activation-config";
 
@@ -14,7 +15,7 @@ import { useActivationConfig } from "./use-activation-config";
 export function DormantPage() {
   const config = useActivationConfig();
   if (config === null) return null;
-  if (!config.enabled) return <Navigate to="/practice" replace />;
+  if (!config.enabled) return <Navigate to={HOME_PATH} replace />;
   return <DormantList />;
 }
 

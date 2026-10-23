@@ -16,7 +16,7 @@ Film-clip role-play dubbing (plan `docs/superpowers/plans/10.21-plans/2026-10-21
 - `locales.ts` + `locales/{en,zh-CN}.json`: strings under `web.dubbing.*`, merged lazily. English and Simplified Chinese only (plan R20, no Spanish).
 
 ## Allowed dependencies
-- `~/api/client`, `~/auth/auth-context`, `~/i18n`, `~/features/library` (only `loadDubbingKit` and the `DubbingKit` type). `~/features/practice` arrives with the scoring queue (W6).
+- `~/api/client`, `~/auth/auth-context`, `~/i18n`, `~/lib/home-route`, `~/features/library` (only `loadDubbingKit` and the `DubbingKit` type). `~/features/practice` arrives with the scoring queue (W6).
 - Never the main-bundle modules of library (only through the kit). Never `features/rooms` or `features/chat`.
 
 ## Test
