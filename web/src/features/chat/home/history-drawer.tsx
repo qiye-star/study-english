@@ -36,11 +36,13 @@ interface PendingDelete { conversation: Conversation; today: boolean }
  * 内容 = 新建 + 今天置顶卡 + 按最近活动日分组的历史 + 加载更多。选中一行 = 关闭抽屉并导航。
  * 抽屉与遮罩都是 fixed 视口级,遮罩不模糊(玻璃预算);左滑关闭的判定在 swipe-close.ts。
  */
-export function HistoryDrawer({ open, onOpenChange, currentId }: {
+export function HistoryDrawer({ open, onOpenChange, currentId, onCloseAutoFocus }: {
   open: boolean;
   onOpenChange(open: boolean): void;
   /** 当前显示的对话 id(aria-current) */
   currentId?: string | null;
+  /** 关闭后的焦点归还(没有 Trigger,所以由调用方把焦点放回历史按钮) */
+  onCloseAutoFocus?(event: Event): void;
 }) {
   const { t, i18n } = useTranslation();
   const { api } = useAuth();
@@ -122,7 +124,7 @@ export function HistoryDrawer({ open, onOpenChange, currentId }: {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay data-testid="chat-history-overlay"
           className="fixed inset-0 z-50 bg-scrim data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none" />
-        <DialogPrimitive.Content id={HISTORY_DRAWER_ID} data-testid="chat-history-drawer" aria-describedby={undefined}
+        <DialogPrimitive.Content id={HISTORY_DRAWER_ID} data-testid="chat-history-drawer" aria-describedby={undefined} onCloseAutoFocus={onCloseAutoFocus}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
           onClickCapture={(e) => { if (swallowClick.current) { swallowClick.current = false; e.preventDefault(); e.stopPropagation(); } }}
           style={dragX ? { transform: `translateX(${dragX}px)`, transition: "none" } : undefined}

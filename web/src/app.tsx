@@ -6,7 +6,7 @@ import { AuthProvider } from "~/auth/auth-context";
 import { AnnouncementBanner, pickText, refreshAnnouncements, useAnnouncements } from "~/components/announcement-banner";
 import { MaintenanceScreen } from "~/components/maintenance-screen";
 import { RequireAuth } from "~/auth/require-auth";
-import { ConversationPage, ConversationsPage } from "~/features/chat";
+import { ChatConversationRoute, ChatIndexRoute, ChatNewRoute } from "~/features/chat";
 import { AssessmentPage, HistoryPage, PracticeListPage, PracticePage } from "~/features/practice";
 import { ProgressPage } from "~/features/progress";
 import { AchievementsPage, MatchPage, RankHomePage } from "~/features/rank";
@@ -73,8 +73,9 @@ export function AppRoutes() {
             <Route path="/practice/list" element={<PracticeListPage />} />
             <Route path="/practice/changelog" element={<ChangelogPage />} />
             <Route path="/practice/assessments/:id" element={<AssessmentPage />} />
-            <Route path="/chat" element={<ConversationsPage />} />
-            <Route path="/chat/:id" element={<ConversationPage />} />
+            <Route path="/chat" element={<ChatIndexRoute />} />
+            <Route path="/chat/new" element={<ChatNewRoute />} />
+            <Route path="/chat/:id" element={<ChatConversationRoute />} />
             <Route path="/progress" element={<ProgressPage />} />
             <Route path="/vocabulary" element={<VocabularyPage />} />
             <Route path="/rank" element={<RankHomePage />} />

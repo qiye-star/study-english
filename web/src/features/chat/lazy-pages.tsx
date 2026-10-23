@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 
+const List = lazy(() => import("./conversations-page").then((m) => ({ default: m.ConversationsPage })));
 const Page = lazy(() => import("./conversation-page").then((m) => ({ default: m.ConversationPage })));
 
 /**
@@ -10,6 +11,15 @@ export function ConversationPage() {
   return (
     <Suspense fallback={<div aria-busy="true" className="flex-1" />}>
       <Page />
+    </Suspense>
+  );
+}
+
+/** 旧会话列表页(`CHAT_HOME_ENABLED` 关时的 /chat)同样按路由懒加载:主包只留路由分发,新旧页面都各自成块(chat home K5)。 */
+export function ConversationsPage() {
+  return (
+    <Suspense fallback={<div aria-busy="true" className="flex-1" />}>
+      <List />
     </Suspense>
   );
 }

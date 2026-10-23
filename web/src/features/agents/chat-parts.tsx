@@ -16,10 +16,12 @@ export interface ChatPersonaControlProps {
   onResolved?(persona: Persona | null): void;
   /** 会话记着角色、但智能体在服务端已关闭(config 说关闭):对话页据此给出「切回普通对话」 */
   onUnavailable?(unavailable: boolean): void;
+  /** 只做解析(onResolved / onUnavailable),不渲染芯片与选择器:对话主页用设置面板选角色,但页面仍需要角色名与「智能体已关闭」 */
+  headless?: boolean;
 }
 
 /** 对话顶栏的角色控件(懒加载块):智能体关闭时什么都不渲染,旧会话因此完全不变。 */
-export function ChatPersonaControl({ personaId, disabled, onChange, onResolved, onUnavailable }: ChatPersonaControlProps) {
+export function ChatPersonaControl({ personaId, disabled, onChange, onResolved, onUnavailable, headless = false }: ChatPersonaControlProps) {
   const { config } = useAgentsConfig();
   const enabled = !!config?.enabled;
   // 没有角色的旧会话不取角色列表(选择器打开时自己取):旧会话最多一次 /api/agents/ 请求
@@ -35,7 +37,7 @@ export function ChatPersonaControl({ personaId, disabled, onChange, onResolved, 
     onUnavailable?.(unavailable);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unavailable]);
-  if (!enabled) return null;
+  if (!enabled || headless) return null;
   return (
     <>
       <PersonaChip persona={persona} pendingId={personaId} disabled={disabled} onClick={() => setOpen(true)} />
