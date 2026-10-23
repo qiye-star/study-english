@@ -20,10 +20,10 @@ def _indexes(con, table: str) -> dict[str, bool]:
     return {r[1]: bool(r[2]) for r in con.execute(f"pragma index_list({table})")}
 
 
-def test_head_is_0022_and_follows_0021(tmp_path, monkeypatch):
+def test_head_is_0023_and_follows_0021(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0022"]
+    assert script.get_heads() == ["0023"]
     assert script.get_revision("0022").down_revision == "0021"
 
 
