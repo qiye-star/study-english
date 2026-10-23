@@ -1,4 +1,5 @@
 import type { ApiClient } from "~/api/client";
+import { tzOffsetMinutes } from "~/lib/tz-offset";
 
 export const STATS_PERIODS = [7, 30, 90] as const;
 export type StatsPeriod = (typeof STATS_PERIODS)[number];
@@ -28,16 +29,8 @@ export interface Stats {
   truncated: boolean;
 }
 
-/** 服务端接受的范围(UTC-12 .. UTC+14)。 */
-const MIN_OFFSET = -720;
-const MAX_OFFSET = 840;
-
-/** R23:相对 UTC 往东的分钟数(UTC+8 → 480),夹在服务端范围内,避免 422。 */
-export function tzOffsetMinutes(date: Date = new Date()): number {
-  const east = -date.getTimezoneOffset();
-  if (!Number.isFinite(east)) return 0;
-  return Math.min(MAX_OFFSET, Math.max(MIN_OFFSET, Math.round(east))) || 0; // `|| 0` 避免 -0
-}
+// Moved to lib/ (chat home needs it without a chat -> progress edge); re-exported unchanged.
+export { tzOffsetMinutes };
 
 export function getStats(api: ApiClient, days: StatsPeriod, signal?: AbortSignal): Promise<Stats> {
   return api.request("GET", "/api/stats", { query: { days, tz_offset_minutes: tzOffsetMinutes() }, signal });
