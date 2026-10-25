@@ -340,5 +340,33 @@
         "en": "The default look is now the clearer glass preset, and the room message action popup is glass too."
       }
     ]
+  },
+  {
+    "entry_date": "2026-10-25",
+    "version": null,
+    "title_zh": "对话首页与每日问候",
+    "title_en": "Chat home and daily greeting",
+    "items": [
+      {
+        "tag": "new",
+        "zh": "对话页现在是「今天的对话」:每天自动新建一个,左侧历史按「今天 / 昨天 / 日期 + 星期」分组,默认对话不占对话数量上限。",
+        "en": "The chat page now opens on today's conversation, a fresh one each day, with history grouped under Today, Yesterday or a dated label, and daily chats don't count toward your chat limit."
+      },
+      {
+        "tag": "new",
+        "zh": "每天第一次打开会弹出一段带动画的问候,分三段:连续学习天数、待复习的词和昨天的错点、今天的练法;可选中文、English 或中英双语,并可随时重播。",
+        "en": "Your first visit each day shows an animated three-paragraph greeting: your streak, words to review and yesterday's slips, and today's practice. Choose Chinese, English or both; replay it any time."
+      },
+      {
+        "tag": "improve",
+        "zh": "在对话右上角的设置里可以换角色、选问候语言、选问候时机(每天一次 / 每次打开 / 关闭),也可以关掉问候里的学习数据。",
+        "en": "Chat settings (top right) let you switch the role, pick the greeting language and timing (daily, every open, or off), and hide learning stats from the greeting."
+      },
+      {
+        "tag": "improve",
+        "zh": "默认角色「聊天伙伴」改名为「学习伙伴」;新对话在开始前不显示输入框,先选角色或直接开始。",
+        "en": "The default partner is renamed Study Partner, and a new chat shows no message box until you pick a role or start straight away."
+      }
+    ]
   }
 ]
