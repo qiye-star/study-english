@@ -15,7 +15,7 @@ MAX_MARKS_PER_LINE = 3
 MAX_MARK_CHARS = 24
 MAX_SENTENCES = 2
 # (min per item, max per item, max in total), characters; en raised 160/420 -> 200/540 by plan addendum 2026-10-25
-# (a real model's second sentence lands at 170-190 characters and 11% of answers were rejected for length), characters after removing marks and collapsing whitespace
+# (a real model's second sentence often lands at 170-190 characters), characters after removing marks and collapsing whitespace
 LIMITS = {
     "zh": {"zh": (12, 60, 160)},
     "en": {"en": (30, 200, 540)},

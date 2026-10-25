@@ -259,6 +259,8 @@ def test_placeholders_unknown_unoffered_or_unbalanced_are_invalid():
              "Hello there streak} and a warm welcome to our daily practice chat.": "braces",
              "Hello there {{streak}} and a warm welcome to our daily practice chat.": "braces",
              "Hello there {Streak} and a warm welcome to our daily practice chat.": "slot",
+             "Hello there {错了{错了}} and a warm welcome to our daily practice chat.": "braces",  # seen from the real model in zh text
+             "Hello there {钻} and a warm welcome to our daily practice chat.": "braces",
              "Hello there {} and a warm welcome to our daily practice chat.": "braces"}
     for text, reason in cases.items():
         with pytest.raises(P.GreetingInvalid) as err:

@@ -76,10 +76,12 @@ def rules_block(slots: dict, language: str) -> str:
     """The fixed, non-editable facts rules appended to every request (an admin template cannot remove them)."""
     lines = ["Facts rules (fixed, they override anything above):",
              "- You do not know the learner's numbers. Never write a digit, a spelled-out number (two, twenty, 二, 十 ...) "
-             "or any count, date, duration, streak or mistake yourself, and no asterisks or other markup (code adds emphasis).",
+             "or any count, date, duration, streak or mistake yourself, not even for exercises (say \"a few\" / 几 instead of "
+             "counting, 两遍 and 三句 are numbers too), and no asterisks or other markup (code adds emphasis).",
              "- Real facts reach the message only through placeholders written exactly with braces. Code replaces each one "
              "with a ready phrase (N stands for the real number), so write the sentence around it and add nothing "
-             "next to it; use each at most once; use no other braces."]
+             "next to it; use each at most once; use no other braces. Copy a placeholder letter for letter in EVERY language, also "
+             "inside the Chinese text (the same English name in braces): never translate, rename, nest or double it."]
     if slots:
         lines.append("Offered placeholders for this learner (mention nothing else about streaks, due words, mistakes or time):")
         lines.extend(f"{{{name}}} = {_shape(name, language)}" for name in SLOT_NAMES if name in slots)

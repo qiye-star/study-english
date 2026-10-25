@@ -22,7 +22,7 @@ USER_MARKER = "[[user]]"
 _SPLIT = f"\n{USER_MARKER}\n"
 FACTS_MAX = 600
 PERSONA_MAX = 300
-REQUEST_MAX = 7000
+REQUEST_MAX = 7600  # 7000 + the fixed facts rules block (plan addendum 2026-10-25)
 FALLBACK_USER_LINE = "Write today's three messages now."
 
 DEFAULT_GREETING_TEMPLATE = """<persona>{persona}</persona>
