@@ -150,3 +150,17 @@ def test_category_tables_cover_the_grammar_checker_categories():
         assert category in T.GRAMMAR_CATEGORY_ZH and category in T.GRAMMAR_CATEGORY_EN
     assert all(not LATIN.search(v) for v in T.GRAMMAR_CATEGORY_ZH.values())
     assert all(not LATIN.search(v) for v in T.TAILS_ZH + T.WEEKDAY_ZH)
+
+
+@pytest.mark.parametrize("language", ["zh", "en", "bilingual"])
+def test_template_for_a_learner_with_no_facts_claims_no_streak_amount_or_mistake(language):
+    """R18: the fallback never invents data either; the only number is the suggested practice length."""
+    import re
+    from datetime import datetime
+    from app.agents.greeting.facts import GreetingFacts
+    from app.agents.greeting.templates import template_lines
+    lines = template_lines(language, GreetingFacts(), include_stats=True, local_now=datetime(2026, 10, 23, 8, 42), user_id=1)
+    text = " ".join(v for line in lines for v in line.values())
+    assert re.sub(r"\*?10 (?:分钟|minutes)\*?", "", text).count("10") == 0
+    assert not re.search(r"\d+\s*(?:天|个单词|words? due|-day streak|处)", text)
+    assert "连续学了" not in text and "day streak" not in text

@@ -43,19 +43,23 @@
       "generated_at": "2026-01-01T00:00:00Z",
       "lines": [
         {
-          "en": "Good morning! It's Friday morning, and you're on a *23-day streak* — that steady effort really adds up.",
-          "zh": "早上好！周五上午，你已连续学习 23 天。"
+          "en": "Good morning! It's Friday morning, and you're on *a 23-day streak* — that steady effort really adds up.",
+          "zh": "早上好！周五上午，你已*连续学习第 23 天*。"
         },
         {
-          "en": "You have *12 words* due for review, and yesterday's slip was *have went* — the right form is *have gone*.",
-          "zh": "12 个单词待复习；昨天的错点：have went → have gone。"
+          "en": "You have *12 words to review*, and yesterday's slip was *have went → have gone* — a quick *10 minutes* will fix it.",
+          "zh": "*有 12 个单词待复习*；昨天的错点：*have went → have gone*。"
         },
         {
-          "en": "Today, let's spend *10 minutes* telling three short stories with *have + past participle*, then clear your review list.",
-          "zh": "今天先花 10 分钟用现在完成时讲三件事，再过一遍单词。"
+          "en": "Today, let's spend *10 minutes* telling a few short stories with the present perfect, then clear your list.",
+          "zh": "今天先花*10 分钟*用现在完成时讲几件事，再过一遍单词。"
         }
       ],
-      "facts": {},
+      "facts": {
+        "streak": 23,
+        "due": 12,
+        "yesterday_mistakes": 2
+      },
       "first_view": true
     }
   },
@@ -87,13 +91,13 @@
       "generated_at": "2026-01-01T00:00:00Z",
       "lines": [
         {
-          "zh": "早上好！这个周五上午，你已经连续学了 *23 天*，这份坚持真的很了不起。"
+          "zh": "你好，欢迎来到每日英语练习聊天，这里是你每天都可以来的轻松小角落。"
         },
         {
-          "zh": "今天有 *12 个单词* 等你复习；昨天在现在完成时里把过去分词错用成了过去式，今天我们把它彻底说对。"
+          "zh": "现在还没有需要复习的内容，没关系，我们正好从头开始。"
         },
         {
-          "zh": "建议先花 *10 分钟*：用现在完成时讲三件你做过的事，再把待复习的单词过一遍，轻松收尾。"
+          "zh": "今天就用英语随便聊聊你的一天吧，说错了也没关系，我来帮你说得更地道。"
         }
       ],
       "facts": {},
@@ -127,13 +131,13 @@
       "generated_at": "2026-01-01T00:00:00Z",
       "lines": [
         {
-          "en": "Good morning! It's Friday morning, and you're on a *23-day streak* — that steady effort really adds up."
+          "en": "Hi there, welcome! This is your daily English practice chat, a friendly little ritual for every day."
         },
         {
-          "en": "You have *12 words* due for review, and yesterday's slip was *have went* — the right form is *have gone*."
+          "en": "There is nothing to review yet, and that is perfectly fine — we simply get to start fresh together."
         },
         {
-          "en": "Today, let's spend *10 minutes* telling three short stories with *have + past participle*, then clear your review list."
+          "en": "Today, tell me anything about your day in English, say it your way, and I'll help you polish it."
         }
       ],
       "facts": {},
@@ -167,13 +171,13 @@
       "generated_at": "2026-01-01T00:00:00Z",
       "lines": [
         {
-          "en": "Good morning! It's Friday morning, and you're on a *23-day streak* — that steady effort really adds up."
+          "en": "Hi there, welcome! This is your daily English practice chat, a friendly little ritual for every day."
         },
         {
-          "en": "You have *12 words* due for review, and yesterday's slip was *have went* — the right form is *have gone*."
+          "en": "There is nothing to review yet, and that is perfectly fine — we simply get to start fresh together."
         },
         {
-          "en": "Today, let's spend *10 minutes* telling three short stories with *have + past participle*, then clear your review list."
+          "en": "Today, tell me anything about your day in English, say it your way, and I'll help you polish it."
         }
       ],
       "facts": {},

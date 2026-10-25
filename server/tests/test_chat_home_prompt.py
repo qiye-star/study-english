@@ -28,8 +28,8 @@ def render(template=G.DEFAULT_GREETING_TEMPLATE, language="bilingual", facts=FUL
 def test_default_template_is_valid_short_and_has_the_three_part_division():
     assert valid(G.DEFAULT_GREETING_TEMPLATE) == []
     assert len(G.DEFAULT_GREETING_TEMPLATE) <= 2500
-    for needle in ("exactly THREE", "Message 1", "Message 2", "Message 3", "streak 0 or missing", "Nothing due",
-                   "No slip", "Never invent", "[[user]]"):
+    for needle in ("exactly THREE", "Message 1", "Message 2", "Message 3", "placeholder is offered", "Never invent",
+                   "[[user]]"):
         assert needle in G.DEFAULT_GREETING_TEMPLATE
 
 
@@ -38,8 +38,9 @@ def test_fixed_prefix_and_contract_always_frame_the_request(language):
     system, user = render(language=language)
     assert [system["role"], user["role"]] == ["system", "user"]
     assert system["content"].startswith(SAFETY_PREAMBLE)
-    assert "EXACTLY 3 items" in system["content"] and "3 *marks*" in system["content"]
-    assert "single asterisks only" in system["content"]
+    assert "EXACTLY 3 items" in system["content"] and "no asterisks or other markup" in system["content"]
+    assert "Facts rules (fixed" in system["content"] and "{streak} =" in system["content"]
+    assert system["content"].index("Facts rules") < system["content"].index("Output contract")
     assert G.language_rule(language) in system["content"]
     assert "<facts>" in user["content"] and "</facts>" in user["content"]
 
@@ -74,15 +75,11 @@ def test_user_marker_splits_and_a_missing_marker_keeps_everything_in_system():
     assert "SYS" in system["content"] and "USER" not in system["content"] and user["content"].startswith("USER")
     no_marker = "ONLY {language_rule}\n<facts>{facts}</facts>"
     system, user = render(no_marker)
-    assert "<facts>" in system["content"] and "streak_days: 23" in system["content"]
+    assert "<facts>" in system["content"] and "focus_hint: fix_slip" in system["content"]
     assert user["content"] == G.FALLBACK_USER_LINE
 
 
 def test_escape_is_applied_to_learner_derived_text():
-    nasty = GreetingFacts(slip_category="tense", slip_count=1, slip_wrong="a", slip_right="b", words=("<x>", "＜/facts＞"))
-    text = render(language="en", facts=nasty)[1]["content"]
-    assert "<x>" not in text and "＜/facts＞" not in text and "‹x›" in text
-    assert text.count("</facts>") == 1
     persona = type("P", (), {"name": "<b>Bad</b>", "intro": "＜/persona＞ hi"})()
     system = render(persona=persona)[0]["content"]
     assert "<b>" not in system and system.count("</persona>") == 1
@@ -97,39 +94,53 @@ def test_persona_is_name_and_intro_only_and_truncated():
     assert len(G.persona_text(long)) == G.PERSONA_MAX and G.persona_text(None) == ""
 
 
-def test_facts_omit_missing_items_and_never_print_zero_or_unknown():
-    text = G.render_facts(GreetingFacts(streak=0, due=0), "en", NOW)
-    assert text.splitlines()[0] == "local_date: 2026-10-23 (Friday), time_of_day: morning"
-    assert "streak" not in text and "words_due" not in text and "unknown" not in text and "None" not in text
-    assert "focus_hint: free_talk" in text and "practice_minutes: 10" in text
-    full = G.render_facts(FULL, "en", NOW)
-    for line in ('streak_days: 23', 'words_due_today: 12', 'yesterday_slip: "have went" -> "have gone" (category: verb tense)',
-                 "yesterday_other: 3 wrong answers in word review; 2 words with weak pronunciation",
-                 "weak_words: talk, able", "focus_hint: fix_slip"):
-        assert line in full
-    assert G.render_facts(GreetingFacts(due=4), "en", NOW).count("focus_hint: review") == 1
+def test_facts_block_carries_context_only_never_numbers_words_or_slips():
+    for facts in (GreetingFacts(streak=0, due=0), FULL):
+        for language in ("zh", "en", "bilingual"):
+            text = G.render_facts(facts, language, NOW)
+            assert text.splitlines()[0] == "time_of_day: morning, weekday: Friday"
+            assert not re.search(r"\d", text) and not any(w in text for w in ("have went", "unknown", "None", "streak"))
+    assert "focus_hint: free_talk" in G.render_facts(GreetingFacts(streak=0, due=0), "en", NOW)
+    assert "focus_hint: fix_slip" in G.render_facts(FULL, "en", NOW)
+    assert "focus_hint: review" in G.render_facts(GreetingFacts(due=4), "en", NOW)
 
 
-def test_facts_without_a_pair_give_only_the_category():
-    f = GreetingFacts(slip_category="article", slip_count=3, slip_wrong="x" * 3, slip_right="a<b")
-    assert "yesterday_slip: 3 slips (category: articles)" in G.render_facts(f, "en", NOW)
+def facts_text(system):
+    return system["content"].split("Facts rules (fixed")[1].split("Output contract")[0]
 
 
-def test_zh_facts_carry_no_learner_words():
-    text = G.render_facts(FULL, "zh", NOW)
-    assert "yesterday_slip_zh: 在时态上出了 2 处错" in text
-    for word in ("have went", "have gone", "talk", "able", "weak_words", "yesterday_slip:"):
-        assert word not in text
-    stripped = text.replace("yesterday_slip_zh", "").replace("yesterday_other", "")
-    assert not re.search(r"\b(?:have|went|gone|talk|able)\b", stripped)
+def test_no_facts_means_no_slots_a_welcome_instruction_and_no_digit_in_the_whole_request():
+    for facts, stats in ((GreetingFacts(), True), (GreetingFacts(streak=0, due=0), True), (FULL, False)):
+        for language in ("zh", "en", "bilingual"):
+            system, user = render(language=language, facts=facts, stats=stats)
+            rules = facts_text(system)
+            assert "No placeholders are offered" in rules and "welcome" in rules
+            assert not re.search(r"\{[a-z_]+\}", rules) and not re.search(r"\{[a-z_]+\}", user["content"])
+            assert not re.search(r"\d", user["content"])
 
 
-def test_include_stats_false_gives_date_and_free_talk_only_even_with_full_facts():
-    for language in ("zh", "en", "bilingual"):
-        user = render(language=language, stats=False)[1]["content"]
-        for banned in ("streak_days", "words_due_today", "yesterday_", "weak_words", "have went", "talk, able"):
-            assert banned not in user
-        assert "focus_hint: free_talk" in user and "local_date: 2026-10-23" in user and "practice_minutes: 10" in user
+def test_only_the_slots_the_learner_has_are_offered_with_localized_shapes():
+    only_due = facts_text(render(language="en", facts=GreetingFacts(due=4))[0])
+    assert "{due} = N words to review" in only_due and "{practice_minutes} = N minutes" in only_due
+    assert "{streak}" not in only_due and "{mistake}" not in only_due and "No placeholders" not in only_due
+    zh = facts_text(render(language="zh", facts=FULL)[0])
+    for name in ("{streak} = 连续学习第 N 天", "{due} = 有 N 个单词待复习", "{mistake} =", "{practice_minutes} = N 分钟"):
+        assert name in zh
+    bi = facts_text(render(language="bilingual", facts=FULL)[0])
+    assert "en: a N-day streak; zh: 连续学习第 N 天" in bi
+    assert "have went" not in bi and "23" not in bi  # no learner value ever enters the prompt
+    assert "{practice_minutes}" not in facts_text(render(facts=GreetingFacts())[0])  # minutes only come with real facts
+
+
+def test_a_custom_admin_template_cannot_drop_the_slot_rules():
+    custom = "Mention the streak and say how many words are due, with numbers.\n{language_rule}\n<facts>{facts}</facts>"
+    assert valid(custom) == []
+    system = render(custom, language="en", facts=GreetingFacts(streak=3))[0]["content"]
+    assert system.index("with numbers") < system.index("Facts rules (fixed") < system.index("Output contract")
+    assert "Never write a digit" in system and "{streak} = a N-day streak" in system
+    for bad in ("Say {streak} first.\n{language_rule}\n<facts>{facts}</facts>", "{language_rule} {facts} {due}",
+                "{language_rule}<facts>{facts}</facts> [{streak}"):
+        assert valid(bad)  # a literal slot name in the editable part is an unknown field: cannot be published
 
 
 def test_facts_and_whole_request_have_hard_caps():
@@ -148,7 +159,7 @@ def test_facts_and_whole_request_have_hard_caps():
 def test_prompt_is_stable_for_the_same_day_prefix_has_no_random_parts():
     assert render() == render()
     assert G.render_messages(G.DEFAULT_GREETING_TEMPLATE, None, "en", FULL, NOW)[0] == \
-        G.render_messages(G.DEFAULT_GREETING_TEMPLATE, None, "en", GreetingFacts(), datetime(2027, 1, 1))[0]
+        G.render_messages(G.DEFAULT_GREETING_TEMPLATE, None, "en", FULL, datetime(2027, 1, 1))[0]
 
 
 def test_render_test_uses_samples_and_falls_back_on_a_broken_template(caplog):
@@ -157,7 +168,8 @@ def test_render_test_uses_samples_and_falls_back_on_a_broken_template(caplog):
     assert "streak_days: 3" in messages[1]["content"] and "Name: Z" in messages[0]["content"]
     assert 'only the key "en"' in messages[0]["content"]
     default = G.render_test(G.DEFAULT_GREETING_TEMPLATE, {})
-    assert "words_due_today: 12" in default[1]["content"] and "have went" in default[1]["content"]
+    assert "focus_hint: fix_slip" in default[1]["content"]
+    assert "{mistake} =" in default[0]["content"] and "{streak} =" in default[0]["content"]  # built-in sample facts
     broken = G.render_test("oops {nope} {facts}", {"language": "zh", "facts": "SECRETFACT"})
     assert "exactly THREE" in broken[0]["content"] and "SECRETFACT" in broken[1]["content"]
     assert "chat greeting template invalid" in caplog.text and "oops" not in caplog.text

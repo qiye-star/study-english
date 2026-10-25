@@ -14,7 +14,7 @@ from tests.agents_helpers import FakeLLM, use_fake_llm
 from tests.conftest import make_settings
 from tests.test_admin_api import register
 from tests.test_admin_routes_guarded import api_routes
-from tests.test_chat_home_parse import DEMO_EN, DEMO_SUB
+from tests.test_chat_home_parse import DEMO_EN, DEMO_SUB, WELCOME_EN, WELCOME_SUB
 from tests.test_chat_home_service import answer
 
 BASE = "/api/chat-home"
@@ -87,7 +87,7 @@ async def test_a_full_generation_leaves_no_text_word_id_persona_or_prompt_in_log
     await client.patch(f"{BASE}/settings", headers=other, json={"language": "en"})
     assert (await client.post(f"{BASE}/today", headers=other, json=body)).status_code == 200 and len(fail.requests) == 1
     forbidden = [SECRET_WORD, SECRET_PERSONA, SECRET_PROMPT, "upstream-secret-body", str(uid), str(other_uid),
-                 *DEMO_EN, *DEMO_SUB, *[t.replace("*", "") for t in DEMO_EN], "你已连续学习", greeting["id"],
+                 *DEMO_EN, *DEMO_SUB, *WELCOME_EN, *WELCOME_SUB, *[t.replace("*", "") for t in DEMO_EN], "你已连续学习", greeting["id"],
                  *greeting["message_ids"], "llm-secret"]
     text = "\n".join(r.getMessage() for r in caplog.records if r.name == "app" or r.name.startswith("app."))
     for needle in forbidden:

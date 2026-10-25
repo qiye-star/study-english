@@ -14,7 +14,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.greeting import facts as facts_mod
-from app.agents.greeting import parse, prefs as prefs_mod, prompt as prompt_mod, templates
+from app.agents.greeting import parse, prefs as prefs_mod, prompt as prompt_mod, slots as slots_mod, templates
 from app.agents.personas import ID_RE, Persona, PersonaStore
 from app.core.db import insert_ignore
 from app.core.timing import log_timing
@@ -146,14 +146,15 @@ async def generate(app, session: AsyncSession, *, user_id: int, day: date, langu
             raw = await asyncio.wait_for(
                 llm.complete(app.state.http, settings, messages, model=settings.resolved_chat_greeting_model,
                              max_tokens=MAX_TOKENS, temperature=TEMPERATURE, timeout=timeout), timeout)
-        lines = parse.parse(raw, language)
+        lines = parse.parse(raw, language, slots_mod.build(facts, include_stats, language))
     except llm.LlmUnavailable as exc:
         await give_back()
         return fallback(exc.kind)
     except TimeoutError:
         await give_back()
         return fallback("timeout")
-    except parse.GreetingInvalid:
+    except parse.GreetingInvalid as exc:
+        logger.info("chat greeting rejected reason=%s", exc.reason)  # a short rule code, never text
         await give_back()
         return fallback("invalid")
     except BaseException:  # cancelled (client gone) or a bug: nothing was delivered, so the allowance returns
