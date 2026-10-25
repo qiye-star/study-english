@@ -14,17 +14,31 @@ from app.agents.greeting import service as S
 from app.models import (ChatGreeting, Conversation, DailyUsage, Message, PromptVersion, VocabularyItem)
 from tests.agents_helpers import FakeLLM, use_fake_llm
 from tests.test_admin_api import register
-from tests.test_chat_home_parse import DEMO_EN, DEMO_SUB, DEMO_ZH
+from tests.test_chat_home_parse import (DEMO_EN, DEMO_SUB, DEMO_ZH, FACTS, MODEL_EN, MODEL_SUB, MODEL_ZH, WELCOME_EN,
+                                        WELCOME_SUB, WELCOME_ZH, welcome)
 
 NOW = datetime(2026, 10, 23, 8, 42, tzinfo=timezone.utc)
 SECRET = "SECRETFACTWORD"
 
 
 def answer(language="bilingual", items=None):
-    if items is None:
-        items = ([{"zh": t} for t in DEMO_ZH] if language == "zh" else [{"en": t} for t in DEMO_EN] if language == "en"
-                 else [{"en": e, "zh": z} for e, z in zip(DEMO_EN, DEMO_SUB)])
+    """A model answer for a learner with NO facts (welcome text, no placeholder); `facts_answer` is for FACTS."""
+    return json.dumps({"lines": welcome(language) if items is None else items}, ensure_ascii=False)
+
+
+def facts_answer(language="bilingual"):
+    items = ([{"zh": t} for t in MODEL_ZH] if language == "zh" else [{"en": t} for t in MODEL_EN] if language == "en"
+             else [{"en": e, "zh": z} for e, z in zip(MODEL_EN, MODEL_SUB)])
     return json.dumps({"lines": items}, ensure_ascii=False)
+
+
+@pytest.fixture
+def known_facts(monkeypatch):
+    """The learner has FACTS (streak 23, 12 due, a tense slip with a pair): the sources are stubbed."""
+    async def gather(app, ctx):
+        return FACTS
+
+    monkeypatch.setattr(S.facts_mod, "gather", gather)
 
 
 async def setup(app, client, name="gina", fake=None, **prefs):
@@ -63,9 +77,8 @@ async def test_first_call_writes_conversation_three_ordered_messages_and_the_gre
     msgs = await messages_of(app, conv.id)
     assert [m.id for m in msgs] == t.greeting["message_ids"] and len(msgs) == 3
     assert all(m.role == "assistant" for m in msgs)
-    assert [m.content for m in msgs] == [e.replace("*", "") + "\n\n" + z for e, z in zip(DEMO_EN, DEMO_SUB)]
-    assert all("*" not in m.content for m in msgs)
-    assert t.greeting["lines"][1]["en"].count("*") == 6  # lines keep the marks
+    assert [m.content for m in msgs] == [e + "\n\n" + z for e, z in zip(WELCOME_EN, WELCOME_SUB)]
+    assert t.greeting["lines"] == welcome("bilingual")
     assert [m.created_at for m in msgs] == sorted(m.created_at for m in msgs)
     assert t.greeting["source"] == "llm" and t.greeting["language"] == "bilingual" and t.greeting["first_view"] is True
     assert t.greeting["generated_at"].endswith("Z")
@@ -119,8 +132,8 @@ async def test_a_stale_pending_claim_is_taken_over_and_a_fresh_one_is_respected(
 @pytest.mark.parametrize("fake_kwargs,kind", [
     ({"status": 402}, "http"),
     ({"texts": ("not json",)}, "invalid"),
-    ({"texts": (answer(items=[{"en": DEMO_EN[0]}, {"en": DEMO_EN[1]}]),)}, "invalid"),
-    ({"texts": (answer(items=[{"en": DEMO_EN[0]}] * 4),)}, "invalid"),
+    ({"texts": (answer(items=[{"en": WELCOME_EN[0]}, {"en": WELCOME_EN[1]}]),)}, "invalid"),
+    ({"texts": (answer(items=[{"en": WELCOME_EN[0]}] * 4),)}, "invalid"),
     ({"texts": (answer(items=[{"en": "x" * 400}] * 3),)}, "invalid"),
 ])
 async def test_upstream_failure_or_bad_output_gives_template_lines_and_refunds(app, client, fake_kwargs, kind):
@@ -181,13 +194,67 @@ async def test_llm_switch_off_means_zero_upstream_requests(app, client):
     assert t.greeting["source"] == "template" and len(fake.requests) == 0 and len(t.greeting["lines"]) == 3
 
 
-async def test_model_answer_with_four_marks_is_stripped_and_still_llm(app, client):
-    items = [{"en": DEMO_EN[0]}, {"en": "*a* has *b* and *c* plus *d* here, so this paragraph is fine to read out loud."},
-             {"en": DEMO_EN[2]}]
-    uid, fake = await setup(app, client, language="en", fake=FakeLLM(texts=(answer(items=items),)))
+async def test_slots_are_filled_by_code_with_marks_and_the_stored_facts_stay_numbers(app, client, known_facts):
+    uid, fake = await setup(app, client, language="en", fake=FakeLLM(texts=(facts_answer("en"),)))
     t = await today(app, uid)
-    assert t.greeting["source"] == "llm" and "*" not in t.greeting["lines"][1]["en"]
-    assert t.greeting["lines"][0]["en"] == DEMO_EN[0]
+    assert t.greeting["source"] == "llm" and [line["en"] for line in t.greeting["lines"]] == DEMO_EN
+    assert t.greeting["lines"][1]["en"].count("*") == 6
+    assert t.greeting["facts"] == {"streak": 23, "due": 12, "yesterday_mistakes": 2}
+    system = fake.requests[0]["messages"][0]["content"]
+    assert "{streak} = a N-day streak" in system and "{mistake} =" in system and not any(ch.isdigit() for ch in fake.requests[0]["messages"][1]["content"])
+    msgs = await messages_of(app, t.conversation.id)
+    assert all("*" not in m.content for m in msgs) and "12 words to review" in msgs[1].content
+
+
+async def test_hallucinated_numbers_fall_back_to_the_template_and_invent_nothing(app, client):
+    """The reported defect: a brand-new learner got 'a streak' and 'twenty words due' from the real model."""
+    invented = [{"en": "Good morning! You are on a 7-day streak, keep up that steady effort today."},
+                {"en": "You have twenty words due for review today, so let's clear them together."},
+                {"en": "Spend 15 minutes on a short chat today and finish with a warm and happy note."}]
+    uid, fake = await setup(app, client, language="en", fake=FakeLLM(texts=(answer(items=invented),)))
+    t = await today(app, uid)
+    assert t.greeting["source"] == "template" and t.greeting["facts"] == {}
+    async with app.state.sessionmaker() as s:
+        assert (await s.scalar(select(ChatGreeting.error_kind))) == "invalid"
+    joined = " ".join(line["en"] for line in t.greeting["lines"])
+    assert "day streak" not in joined and "twenty" not in joined and "7" not in joined and "20" not in joined
+    assert "words due" not in joined  # the template says nothing is due, it claims no amount
+    assert await usage_count(app, S.SCOPE_GREETING_USER) == 0
+
+
+@pytest.mark.parametrize("language,key,text,reason", [
+    ("en", "en", "Good morning, you are on {streak} today, my dear friend.", "slot"),  # nothing offered to a new learner
+    ("en", "en", "Good morning, you have 20 words waiting for you, my friend.", "number"),
+    ("en", "en", "Good morning, you have twenty words waiting for you, my friend.", "number"),
+    ("zh", "zh", "早上好，你已经连续学习七天了，继续保持下去哦朋友。", "number"),
+    ("zh", "zh", "早上好，你已经连续学习 ７ 天了，继续保持下去哦朋友。", "number"),
+    ("bilingual", "zh", "早上好，你今天有 ２０ 个单词要复习哦朋友。", "number"),
+    ("en", "en", "Good morning, you have {due waiting for you, my friend.", "braces"),
+])
+async def test_every_validator_failure_path_falls_back_to_the_template(app, client, caplog, language, key, text, reason):
+    good = welcome(language)
+    items = [{**item, key: text} for item in good]
+    items[1] = good[1]
+    uid, fake = await setup(app, client, language=language, fake=FakeLLM(texts=(answer(items=items),)))
+    caplog.set_level(logging.INFO, logger="app")
+    t = await today(app, uid)
+    assert t.greeting["source"] == "template" and len(t.greeting["lines"]) == 3
+    assert f"chat greeting rejected reason={reason}" in caplog.text
+    assert text not in caplog.text  # the log carries the rule code only
+    async with app.state.sessionmaker() as s:
+        assert (await s.scalar(select(ChatGreeting.error_kind))) == "invalid"
+
+
+async def test_an_unoffered_slot_is_refused_even_when_others_are_offered(app, client, known_facts):
+    only_due = [{"en": "Good morning, my friend! Today you have {due}, so let's go."},
+                {"en": "Good morning, my friend! Today you are on {streak}, so let's go."},
+                {"en": "Today, let's spend a little time on a friendly chat in English together."}]
+    async def narrow(app, ctx):
+        return facts_mod.GreetingFacts(due=3)
+
+    S.facts_mod.gather = narrow  # restored by the known_facts monkeypatch teardown
+    uid, fake = await setup(app, client, language="en", fake=FakeLLM(texts=(answer(items=only_due),)))
+    assert (await today(app, uid)).greeting["source"] == "template"
 
 
 async def test_deleting_today_conversation_then_today_again_restores_the_same_lines_without_the_model(app, client):
@@ -328,7 +395,9 @@ async def test_facts_flow_into_the_prompt_as_text_but_storage_keeps_numbers_only
         s.add(VocabularyItem(user_id=uid, word=SECRET, source="x", box=0, due_at=NOW - timedelta(days=1)))
         await s.commit()
     t = await today(app, uid)
-    assert "words_due_today: 1" in fake.requests[0]["messages"][1]["content"]
+    system = fake.requests[0]["messages"][0]["content"]
+    assert "{due} = N words to review" in system and "{streak}" not in system  # one due word: only that slot is offered
+    assert not any(ch.isdigit() for ch in fake.requests[0]["messages"][1]["content"])
     assert SECRET not in json.dumps(t.greeting) and SECRET not in json.dumps(fake.requests[0])
 
 
@@ -341,6 +410,7 @@ async def test_published_prompt_is_used_and_its_version_recorded(app, client):
     t = await today(app, uid)
     system = fake.requests[0]["messages"][0]["content"]
     assert "CUSTOMTONE" in system and "EXACTLY 3 items" in system
+    assert "Facts rules (fixed" in system and "No placeholders are offered" in system  # the admin cannot remove the block
     async with app.state.sessionmaker() as s:
         assert (await s.scalar(select(ChatGreeting.prompt_version))) == 3
     assert t.greeting["source"] == "llm"

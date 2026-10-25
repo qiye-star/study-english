@@ -6,17 +6,20 @@ and stripped from the stored message text. `check_lines` is the one place that k
 and the templates (fallback) both go through it. Failures carry a short reason code, never text."""
 import json
 import re
+import unicodedata
+from collections.abc import Mapping
 
 LINE_COUNT = 3
 LANGUAGES = ("zh", "en", "bilingual")
 MAX_MARKS_PER_LINE = 3
 MAX_MARK_CHARS = 24
 MAX_SENTENCES = 2
-# (min per item, max per item, max in total), characters after removing marks and collapsing whitespace
+# (min per item, max per item, max in total), characters; en raised 160/420 -> 200/540 by plan addendum 2026-10-25
+# (a real model's second sentence often lands at 170-190 characters), characters after removing marks and collapsing whitespace
 LIMITS = {
     "zh": {"zh": (12, 60, 160)},
-    "en": {"en": (30, 160, 420)},
-    "bilingual": {"en": (30, 160, 420), "zh": (8, 60, 130)},
+    "en": {"en": (30, 200, 540)},
+    "bilingual": {"en": (30, 200, 540), "zh": (8, 60, 130)},
 }
 BILINGUAL_ZH_MIN_CHARS = 6
 
@@ -28,6 +31,17 @@ _DOUBLE_STAR = re.compile(r"\*\*([^*\n]+)\*\*")
 _SENTENCE_END = re.compile(r"[。！？!?…]+|\.+(?!\d)")
 _LIST_PREFIX = re.compile(r"^\s*(?:#+\s*|[-•]\s+|\*\s+|\d+[.)]\s+)")
 _QUOTES = "\"'“”‘’「」『』"
+_SLOT = re.compile(r"\{([A-Za-z_]+)\}")
+# Chinese numerals. 一 is everywhere in everyday words (一起 一遍 练一练 忙了一周 ...) and the real model uses them in 3 of 6 zh
+# answers, so it only counts when it states a quantity of what the facts are about (a day, minute, word, time ... or "第一").
+_CN_NUMERAL = re.compile("[零〇二三四五六七八九十百千万亿两]")
+_CN_ONE_CLAIM = re.compile("第一|一(?:天|年|分钟|小时|次|处|条)|一个?(?:月|单词|词|错)")
+# words that contain a numeral character but state no quantity; removed before the numeral check
+_CN_NUMERAL_OK = ("周一", "周二", "周三", "周四", "周五", "周六", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
+                  "礼拜一", "礼拜二", "礼拜三", "礼拜四", "礼拜五", "礼拜六", "十分", "万一", "千万", "的一天")
+_EN_NUMBER = re.compile(r"\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|"
+                        r"sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|"
+                        r"hundred|thousand|million|dozen)\b", re.IGNORECASE)
 
 
 class GreetingInvalid(ValueError):
@@ -118,8 +132,52 @@ def check_lines(lines: object, language: str) -> str | None:
     return None
 
 
-def parse(raw: str, language: str) -> list[dict]:
-    """Model output -> the three normalized items, or GreetingInvalid. Nothing is truncated, padded or partially kept."""
+def model_text_error(text: str, slots: Mapping) -> str | None:
+    """Checks on the model's own text BEFORE substitution (R18): braces, offered placeholders only, and no number at all
+    outside placeholders (ASCII / fullwidth / other digits, Chinese numerals except everyday words, English number words)."""
+    found = _SLOT.findall(text)
+    rest = _SLOT.sub(" ", text)
+    if "{" in rest or "}" in rest:
+        return "braces"
+    if any(name not in slots for name in found):
+        return "slot"
+    if any(unicodedata.category(ch) in ("Nd", "Nl", "No") for ch in rest):
+        return "number"
+    for word in _CN_NUMERAL_OK:
+        rest = rest.replace(word, " ")
+    if _CN_NUMERAL.search(rest) or _CN_ONE_CLAIM.search(rest) or _EN_NUMBER.search(rest):
+        return "number"
+    return None
+
+
+def _safe_phrase(phrase: str) -> str:
+    """A code-made phrase as it enters a paragraph: no mark, markup, brace or line break characters."""
+    return " ".join(phrase.translate(dict.fromkeys(map(ord, "*<>{}"))).split())
+
+
+def fill(text: str, slots: Mapping, key: str) -> str:
+    """Replace each placeholder by its `key` (en / zh) phrase wrapped in `*…*` (R17: at most MAX_MARKS_PER_LINE marks,
+    1-MAX_MARK_CHARS characters inside; a longer phrase stays plain). `text` already passed model_text_error."""
+    marks = 0
+
+    def put(match: re.Match) -> str:
+        nonlocal marks
+        phrase = _safe_phrase(slots[match.group(1)][key])
+        if not phrase:
+            raise GreetingInvalid("slot_empty")
+        if marks < MAX_MARKS_PER_LINE and len(phrase) <= MAX_MARK_CHARS:
+            marks += 1
+            return f"*{phrase}*"
+        return phrase
+
+    return _SLOT.sub(put, text)
+
+
+def parse(raw: str, language: str, slots: Mapping | None = None) -> list[dict]:
+    """Model output -> the three normalized items, or GreetingInvalid. Nothing is truncated, padded or partially kept.
+    `slots` = slot name -> {"en": phrase, "zh": phrase} for the facts offered (none = nothing offered): the model's text may
+    hold only those placeholders and no numbers; the phrases are substituted and emphasised here (R18)."""
+    slots = slots or {}
     if language not in LIMITS:
         raise GreetingInvalid("language")
     text = raw.strip() if isinstance(raw, str) else ""
@@ -140,7 +198,14 @@ def parse(raw: str, language: str) -> list[dict]:
         if not isinstance(item, dict) or set(item) != keys or any(
                 not isinstance(item[k], str) or not item[k].strip() for k in keys):
             raise GreetingInvalid("keys")
-        lines.append({key: _clean(item[key]) for key in LIMITS[language]})
+        row = {}
+        for key in LIMITS[language]:
+            text = _clean(item[key].replace("*", ""))  # emphasis is added by code around the real phrases only
+            error = model_text_error(text, slots)
+            if error:
+                raise GreetingInvalid(error)
+            row[key] = fill(text, slots, key)
+        lines.append(row)
     reason = check_lines(lines, language)
     if reason:
         raise GreetingInvalid(reason)

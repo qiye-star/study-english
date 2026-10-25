@@ -12,7 +12,7 @@ from app.models import ChatGreeting
 from tests.agents_helpers import FakeLLM, check_contract, use_fake_llm
 from tests.test_admin_api import register
 from tests.test_chat_home_parse import DEMO_EN
-from tests.test_chat_home_service import answer
+from tests.test_chat_home_service import FACTS, answer, facts_answer
 
 BASE = "/api/chat-home"
 NOW = datetime(2026, 10, 23, 8, 42, tzinfo=timezone.utc)
@@ -43,12 +43,17 @@ async def configure(client, headers, **prefs):
 
 async def test_chat_home_payloads_match_the_web_contract(app, client, monkeypatch):
     monkeypatch.setattr("app.routers.chat_home.utcnow", lambda: NOW)
-    await use_fake_llm(app, FakeLLM(texts=(answer("bilingual"),)))
+    await use_fake_llm(app, FakeLLM(texts=(facts_answer("bilingual"),)))
     _, bi = await register(client, "bilin")
     config = (await client.get(f"{BASE}/config", headers=bi)).json()
     settings = (await client.get(f"{BASE}/settings", headers=bi)).json()
     patched = await configure(client, bi, language="bilingual", include_stats=True)
-    ready_bi = await today(client, bi)
+    async def known(app_, ctx):  # this learner has facts, so the model's placeholders are offered and filled by code
+        return FACTS
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr("app.agents.greeting.service.facts_mod.gather", known)
+        ready_bi = await today(client, bi)
     seen = (await client.post(f"{BASE}/greetings/{ready_bi['greeting']['id']}/seen", headers=bi)).json()
 
     _, zh = await register(client, "zhuser")
@@ -104,7 +109,7 @@ async def test_chat_home_payloads_match_the_web_contract(app, client, monkeypatc
         assert not any(any(c.isupper() for c in k) for k in config)
     assert "zh_note" in expected["today_zh"]["conversation"]["config"] and "zh_note" in expected["today_bilingual"]["conversation"]["config"]
     assert "zh_note" not in expected["today_en"]["conversation"]["config"]
-    # emphasis: at least one line carries three legal *marks* (the demo's second English paragraph)
+    # emphasis: at least one line carries three legal *marks* (the demo's second English paragraph, all three filled by code)
     en_lines = [line["en"] for line in expected["today_bilingual"]["greeting"]["lines"]]
     assert en_lines[1].count("*") == 6 and en_lines == DEMO_EN
     assert expected["today_no_stats"]["greeting"]["facts"] == {}
