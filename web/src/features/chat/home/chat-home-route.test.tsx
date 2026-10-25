@@ -248,17 +248,16 @@ describe("greeting trigger rules (only on the chat home)", () => {
   });
 
   it("deleting today's chat from the drawer rebuilds it: DELETE then POST /today once each, no popup, new chat with its three greeting bubbles", async () => {
-    let n = 0;
+    let deleted = false; // the response depends on the DELETE having happened, not on how many POSTs came first (a call counter made the outcome depend on request order)
     const NEW_ID = "c-rebuilt";
     const rebuilt = { ...SEEN_TODAY, conversation: { ...SEEN_TODAY.conversation, id: NEW_ID }, greeting: { ...SEEN_TODAY.greeting, id: "g2", message_ids: ["n1", "n2", "n3"], first_view: true } };
     const mock = setup("/chat", {
-      "POST /api/chat-home/today": () => json(++n === 1 ? SEEN_TODAY : rebuilt),
-      "DELETE /api/conversations/c-today": () => json({ id: "c-today" }),
+      "POST /api/chat-home/today": () => json(deleted ? rebuilt : SEEN_TODAY),
+      "DELETE /api/conversations/c-today": () => { deleted = true; return json({ id: "c-today" }); },
       [`GET /api/conversations/${NEW_ID}`]: () => json(rebuilt.conversation),
       [`GET /api/conversations/${NEW_ID}/messages`]: () => json({ messages: ["n1", "n2", "n3"].map((id, i) => ({ id, conversation_id: NEW_ID, role: "assistant", content: `${rebuilt.greeting.lines[i].en.replace(/\*/g, "")}\n\n${rebuilt.greeting.lines[i].zh.replace(/\*/g, "")}`, created_at: "2026-10-23T00:42:10Z" })) }),
     });
-    await requestToday(mock.api, { open: true });
-    await screen.findAllByTestId("chat-greeting-line");
+    await screen.findAllByTestId("chat-greeting-line"); // the route itself POSTs /today once on mount
     await userEvent.click(screen.getByTestId("chat-history-open"));
     await userEvent.click(await screen.findByTestId("chat-history-today-delete"));
     await userEvent.click(await screen.findByTestId("conversation-delete-confirm"));
