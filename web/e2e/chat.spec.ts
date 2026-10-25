@@ -303,7 +303,7 @@ test("save a reply sentence, find it in the practice list and practice it", asyn
   await expect(page.getByTestId("practice-item")).toHaveCount(1);
   await expect(page.getByTestId("practice-item")).toContainText(sentence);
   await page.getByTestId("practice-item").click();
-  await expect(page).toHaveURL(/\/practice$/);
+  await expect(page).toHaveURL(/\/practice\/shadow$/); // the shadowing page lives at /practice/shadow now
   await expect(page.getByTestId("reference-input")).toHaveValue(sentence);
 });
 
