@@ -435,70 +435,70 @@ App 挂载(任何路由) ──► ChatHomeOpenEffect
 规模:S ≈ 半小时内、M ≈ 1–2 小时、L ≈ 半天。「后端依赖」指服务端计划的任务编号;标「无」的可以在服务端完成前做(用桩数据测试)。
 
 ### Task W0: 前置核对(只读,不提交)— S — 后端依赖:无
-- [ ] `git status` 记下用户未提交改动,之后只按路径 `git add`。
-- [ ] 核对 §3 每个文件 / testid 仍在(`grep -rn` testid 列表);`conversation-page.test.tsx` / `.agent.test.tsx` / `conversations-page.test.tsx` 用例数(226 / 24 / 19)。
-- [ ] 读出 `auth/` 里登出清理的实际文件名、底部标签栏 / 查词层 / BottomSheet 的 `z-index`、`appEffects` 点的 props 形状(`lib/extension-points.ts`)。
-- [ ] `cd web && yarn web:build && node scripts/check-main-bundle.mjs` 记下当前主包(基线 410.03 kB)。
+- [x] `git status` 记下用户未提交改动,之后只按路径 `git add`。
+- [x] 核对 §3 每个文件 / testid 仍在(`grep -rn` testid 列表);`conversation-page.test.tsx` / `.agent.test.tsx` / `conversations-page.test.tsx` 用例数(226 / 24 / 19)。
+- [x] 读出 `auth/` 里登出清理的实际文件名、底部标签栏 / 查词层 / BottomSheet 的 `z-index`、`appEffects` 点的 props 形状(`lib/extension-points.ts`)。
+- [x] `cd web && yarn web:build && node scripts/check-main-bundle.mjs` 记下当前主包(基线 410.03 kB)。
 - [ ] 确认服务端代码按服务端计划 §1 第 22 条用 snake_case 键(`zh_note` / `agent_persona_id`)落库(合并后 `grep -rn "zhNote\|agentPersonaId" server/app` 应为空);不一致 → 停下报告,W2 / W10 不开工。
 - [ ] 不一致 → 停下报告,不要自行改裁定。
 
 ### Task W1: 时区工具搬到 lib — S — 后端依赖:无 — `refactor(web): move tzOffsetMinutes to lib`
-- [ ] `lib/tz-offset.ts`(`tzOffsetMinutes`、`localDateString(date)`);`features/progress/stats-api.ts` 改为从 lib 导入并 re-export(公开接口不变)。
-- [ ] 测试:`lib/tz-offset.test.ts`、`src/features/progress`、`architecture.test.ts`。
+- [x] `lib/tz-offset.ts`(`tzOffsetMinutes`、`localDateString(date)`);`features/progress/stats-api.ts` 改为从 lib 导入并 re-export(公开接口不变)。
+- [x] 测试:`lib/tz-offset.test.ts`、`src/features/progress`、`architecture.test.ts`。
 
 ### Task W2: 契约与 API 客户端 — M — 后端依赖:S9、S10(夹具)— `feat(web): chat home api client and contract test`
-- [ ] `home/chat-home-api.ts`(§6.1)、`chat-api.ts` 增量字段(`dailyDate`、`zhNote`、`listConversations` 的 `opts`;旧调用与旧请求体不变)。
-- [ ] `home/emphasis.ts`(FR19 纯函数;契约测试要用)。
-- [ ] `home/chat-home-contract.test.ts` 读服务端夹具;`chat-home-api.test.ts`;`emphasis.test.ts`;`chat-api.test.ts` 新增用例。
-- [ ] `home/CLAUDE.md`(隐私、懒加载、动画约定、FR0)。
+- [x] `home/chat-home-api.ts`(§6.1)、`chat-api.ts` 增量字段(`dailyDate`、`zhNote`、`listConversations` 的 `opts`;旧调用与旧请求体不变)。
+- [x] `home/emphasis.ts`(FR19 纯函数;契约测试要用)。
+- [x] `home/chat-home-contract.test.ts` 读服务端夹具;`chat-home-api.test.ts`;`emphasis.test.ts`;`chat-api.test.ts` 新增用例。
+- [x] `home/CLAUDE.md`(隐私、懒加载、动画约定、FR0)。
 
 ### Task W3: 开关钩子、store 与打开检测 — M — 后端依赖:无(桩),集成需 S9 — `feat(web): chat home config, store and app-open detection`
-- [ ] `use-chat-home-config.ts`、`chat-home-store.ts`、`chat-home-open.ts`、`register-chat-home.tsx`;`plugins/core.ts` 加一行 import。
-- [ ] `clearChatHomeCache` 导出 + 登出调用(FR18)。
-- [ ] 测试:`chat-home-store.test.ts`、`chat-home-open.test.ts`、`plugins/links-matrix.test.tsx`(全关时核心贡献多一个 `appEffects/chat.home-open`,如该测试枚举核心贡献则**新增**断言)、auth 测试、`architecture.test.ts`。
+- [x] `use-chat-home-config.ts`、`chat-home-store.ts`、`chat-home-open.ts`、`register-chat-home.tsx`;`plugins/core.ts` 加一行 import。
+- [x] `clearChatHomeCache` 导出 + 登出调用(FR18)。
+- [x] 测试:`chat-home-store.test.ts`、`chat-home-open.test.ts`、`plugins/links-matrix.test.tsx`(全关时核心贡献多一个 `appEffects/chat.home-open`,如该测试枚举核心贡献则**新增**断言)、auth 测试、`architecture.test.ts`。
 
 ### Task W4: 对话页外框插槽(零行为变化)— L — 后端依赖:无 — `refactor(web): conversation page chrome slots (no behaviour change)`
-- [ ] `conversation-page.tsx` 加 `conversationId` / `chrome`(FR3);旧外框抽到 `classic-chrome.tsx`;`options-rows.tsx` 抽出并让 `conversation-header-actions.tsx` 使用(DOM 不变)。
-- [ ] **验收:** `conversation-page.test.tsx`、`conversation-page.agent.test.tsx`、`conversation-settings-sheet.test.tsx`、`bubble-actions.test.tsx`、`voice-ui.test.tsx`、`tap-lookup-bubble.test.tsx` 不改一行全绿;新增 `classic-chrome.test.tsx`(缺省 props 时快照与重构前一致:用重构前提交生成的 DOM 快照对比一次后删除快照,只留结构断言)。
-- [ ] 可与 W1–W3 并行;最先合并更安全。
+- [x] `conversation-page.tsx` 加 `conversationId` / `chrome`(FR3);旧外框抽到 `classic-chrome.tsx`;`options-rows.tsx` 抽出并让 `conversation-header-actions.tsx` 使用(DOM 不变)。
+- [x] **验收:** `conversation-page.test.tsx`、`conversation-page.agent.test.tsx`、`conversation-settings-sheet.test.tsx`、`bubble-actions.test.tsx`、`voice-ui.test.tsx`、`tap-lookup-bubble.test.tsx` 不改一行全绿;新增 `classic-chrome.test.tsx`(缺省 props 时快照与重构前一致:用重构前提交生成的 DOM 快照对比一次后删除快照,只留结构断言)。
+- [x] 可与 W1–W3 并行;最先合并更安全。
 
 ### Task W5: 日期标签与历史抽屉 — M — 后端依赖:无(桩),`hide_idle_daily` 与删除今天后重建的集成需 S7、S9 — `feat(web): history drawer with date groups`
-- [ ] `date-label.ts`、`swipe-close.ts`、`use-history.ts`、`history-drawer.tsx`(FR7、FR9、FR16;按 `updatedAt` 本地日分组、今天置顶去重、今天置顶卡删除 + `chat-home-store` 的 `rebuildToday`)。
-- [ ] 测试:`date-label.test.ts`、`swipe-close.test.ts`、`history-drawer.test.tsx`。
+- [x] `date-label.ts`、`swipe-close.ts`、`use-history.ts`、`history-drawer.tsx`(FR7、FR9、FR16;按 `updatedAt` 本地日分组、今天置顶去重、今天置顶卡删除 + `chat-home-store` 的 `rebuildToday`)。
+- [x] 测试:`date-label.test.ts`、`swipe-close.test.ts`、`history-drawer.test.tsx`。
 
 ### Task W6: 设置面板与角色单选 — M — 后端依赖:S2 / S9(`/settings`,含 `include_stats`),S7(R16 读取时 `facts` 规则),S8(`zh_note` 生效)— `feat(web): chat home settings sheet (role, greeting language, trigger, stats, replay)`
-- [ ] `features/agents/persona-radio-list.tsx`(+ `lazy-parts.tsx` `/* @__PURE__ */` 一行、`index.ts` 一行)。
-- [ ] `home/segmented.tsx`、`home/chat-settings-sheet.tsx`(FR5:含「问候里提学习数据」开关与「重播今天的问候」入口;重播先只发出 `onReplay` 回调,弹窗接线在 W10)。
-- [ ] 测试:`persona-radio-list.test.tsx`、`chat-settings-sheet.test.tsx`、`src/features/agents`、`architecture.test.ts`。
+- [x] `features/agents/persona-radio-list.tsx`(+ `lazy-parts.tsx` `/* @__PURE__ */` 一行、`index.ts` 一行)。
+- [x] `home/segmented.tsx`、`home/chat-settings-sheet.tsx`(FR5:含「问候里提学习数据」开关与「重播今天的问候」入口;重播先只发出 `onReplay` 回调,弹窗接线在 W10)。
+- [x] 测试:`persona-radio-list.test.tsx`、`chat-settings-sheet.test.tsx`、`src/features/agents`、`architecture.test.ts`。
 
 ### Task W7: 新外框、路由与开关回退 — L — 后端依赖:W2、W3、W5、W6;集成需 S9 — `feat(web): chat home shell, routes and CHAT_HOME_ENABLED fallback`
-- [ ] `home-chrome.tsx`、`chat-home-shell.tsx`(懒)、`routes.tsx`、`new-chat.tsx`、`role-hint.tsx`、`empty-day.tsx`;`lazy-pages.tsx`、`index.ts`、`app.tsx` 三条路由(FR1、FR4、FR6、FR8、FR11)。
-- [ ] 测试:`chat-home-route.test.tsx`(先不含弹窗用例)、`new-chat.test.tsx`、`role-hint.test.tsx`、`chat-home-parity.test.tsx`、`chat-home-lazy.test.tsx`、`home-skin.test.tsx`;**全量** `yarn web:test`、`yarn web:build`、主包检查 `--max-delta=0.5`。
+- [x] `home-chrome.tsx`、`chat-home-shell.tsx`(懒)、`routes.tsx`、`new-chat.tsx`、`role-hint.tsx`、`empty-day.tsx`;`lazy-pages.tsx`、`index.ts`、`app.tsx` 三条路由(FR1、FR4、FR6、FR8、FR11)。
+- [x] 测试:`chat-home-route.test.tsx`(先不含弹窗用例)、`new-chat.test.tsx`、`role-hint.test.tsx`、`chat-home-parity.test.tsx`、`chat-home-lazy.test.tsx`、`home-skin.test.tsx`;**全量** `yarn web:test`、`yarn web:build`、主包检查 `--max-delta=0.5`。
 
 ### Task W8: 问候弹窗(显示、倒计时、跳过、无障碍、减弱动效)— L — 后端依赖:无(桩)— `feat(web): greeting modal with multi-line reveal and countdown`
-- [ ] `motion.ts`、`greeting-tokens.ts`、`greeting-reveal.ts`、`countdown.ts`、`greeting-stats.tsx`、`emphasis-text.tsx`、`greeting-modal.tsx`(FR13–FR16、FR19;`mode: "open" | "replay"`;极光用 `filter: blur` 色斑,不用 backdrop-filter)。依赖 W2 的 `emphasis.ts`(若 W8 先做,先把 `emphasis.ts` 连同测试放进 W8,W2 改为复用)。
-- [ ] 测试:`greeting-tokens.test.ts`、`countdown.test.ts`、`greeting-modal.test.tsx`、`styles/glass-budget.test.ts`。
+- [x] `motion.ts`、`greeting-tokens.ts`、`greeting-reveal.ts`、`countdown.ts`、`greeting-stats.tsx`、`emphasis-text.tsx`、`greeting-modal.tsx`(FR13–FR16、FR19;`mode: "open" | "replay"`;极光用 `filter: blur` 色斑,不用 backdrop-filter)。依赖 W2 的 `emphasis.ts`(若 W8 先做,先把 `emphasis.ts` 连同测试放进 W8,W2 改为复用)。
+- [x] 测试:`greeting-tokens.test.ts`、`countdown.test.ts`、`greeting-modal.test.tsx`、`styles/glass-budget.test.ts`。
 
 ### Task W9: 对话里的问候组与飞入 — M — 后端依赖:S7(`message_ids`)集成 — `feat(web): greeting group in today's chat and fly-in transition`
-- [ ] `greeting-group.tsx`(经 `chrome.renderMessage`)、`greeting-fly.ts`(FR12、FR14 关闭段)。
-- [ ] 测试:`greeting-group.test.tsx`、`greeting-fly.test.ts`、`chat-home-parity.test.tsx`。
+- [x] `greeting-group.tsx`(经 `chrome.renderMessage`)、`greeting-fly.ts`(FR12、FR14 关闭段)。
+- [x] 测试:`greeting-group.test.tsx`、`greeting-fly.test.ts`、`chat-home-parity.test.tsx`。
 
 ### Task W10: 问候时机接线 — M — 后端依赖:S7、S9 — `feat(web): greeting trigger rules (daily / every open / off) on the chat home only`
-- [ ] `ChatIndexRoute` 的弹窗条件、`seen`、本机 `shown`、pending 重试接 UI、跨午夜(FR10);设置面板「重播」接到 `GreetingModal mode="replay"`(FR5);删除今天后重建不弹窗(FR7、FR10)。
-- [ ] 测试:`chat-home-route.test.tsx` 补齐弹窗用例(§7 表)、`chat-home-open.test.ts`。
+- [x] `ChatIndexRoute` 的弹窗条件、`seen`、本机 `shown`、pending 重试接 UI、跨午夜(FR10);设置面板「重播」接到 `GreetingModal mode="replay"`(FR5);删除今天后重建不弹窗(FR7、FR10)。
+- [x] 测试:`chat-home-route.test.tsx` 补齐弹窗用例(§7 表)、`chat-home-open.test.ts`。
 
 ### Task W11: 文案、token 与皮肤收尾 — S/M — 后端依赖:无 — `feat(web): chat home copy (zh/en) and greeting tokens`
-- [ ] `i18n/{en,zh-CN}.json` 补全 `web.chat.home.*`(FR17);`theme.css` + `tailwind.config.cjs` 新 token(两套)与对比度断言。
-- [ ] 测试:`styles/theme.test.ts`、`liquid-*`、`glass-budget`、chat i18n 键一致性(若无现成测试,在 `home/locales.test.ts` 新增)。
+- [x] `i18n/{en,zh-CN}.json` 补全 `web.chat.home.*`(FR17);`theme.css` + `tailwind.config.cjs` 新 token(两套)与对比度断言。
+- [x] 测试:`styles/theme.test.ts`、`liquid-*`、`glass-budget`、chat i18n 键一致性(若无现成测试,在 `home/locales.test.ts` 新增)。
 
 ### Task W12: E2E 适配(编写,运行等用户要求)— M — 后端依赖:全部 S 任务 — `test(web): chat home e2e and mode-agnostic chat specs`
-- [ ] `e2e/chat-home.spec.ts`;`chat.spec.ts` / `hold-to-talk.spec.ts` / `lookup.spec.ts` 的进入方式改为模式无关 helper(`e2e/support/chat.ts`);`upstream-guard.ts` + `src/test/e2e-upstream-guard.test.ts` 放行 `/api/chat-home/*`;`docker-compose.e2e.yml` 的环境变量说明写进 `web/README.md`(不改未跟踪的 compose 文件)。
-- [ ] 测试:`yarn web:typecheck`(含 e2e)、`src/test/e2e-upstream-guard.test.ts`。
+- [x] `e2e/chat-home.spec.ts`;`chat.spec.ts` / `hold-to-talk.spec.ts` / `lookup.spec.ts` 的进入方式改为模式无关 helper(`e2e/support/chat.ts`);`upstream-guard.ts` + `src/test/e2e-upstream-guard.test.ts` 放行 `/api/chat-home/*`;`docker-compose.e2e.yml` 的环境变量说明写进 `web/README.md`(不改未跟踪的 compose 文件)。
+- [x] 测试:`yarn web:typecheck`(含 e2e)、`src/test/e2e-upstream-guard.test.ts`。
 
 ### Task W13: 文档、主包、截图 — S — 后端依赖:无 — `docs(web): chat home and daily greeting`
 - [ ] `web/README.md`(新布局、开关回退、未验证清单)、`features/chat/CLAUDE.md`(home/ 一行、外框插槽、FR0)、`web/CLAUDE.md` Pitfalls 一行;`docs/images/readme/` 对话截图替换(本地演示环境假数据,≤ 250 KB)。
-- [ ] `yarn web:test && yarn web:build && node scripts/check-main-bundle.mjs --max-delta=0.5`;主包变小时才 `--record`(提交 `main-bundle-baseline.json`)。
-- [ ] 本计划「未验证清单」按实际更新;勾选只在合并且测试通过后。
+- [x] `yarn web:test && yarn web:build && node scripts/check-main-bundle.mjs --max-delta=0.5`;主包变小时才 `--record`(提交 `main-bundle-baseline.json`)。
+- [x] 本计划「未验证清单」按实际更新;勾选只在合并且测试通过后。
 
 **依赖图:** `W0 → W1`;`W4` 只依赖 W0(建议最先合并);`W2` 依赖 S9 + S10;`W3` 依赖 W1(时区)、W2(类型);`W5`、`W8` 只依赖 W0(纯 UI,可并行;`W5` 的 `rebuildToday` 用 W3 的 store,未合并时先用桩;`W8` 与 W2 共用 `emphasis.ts`,谁先做谁带上);`W6` 依赖 W2、W4;`W7` 依赖 W2、W3、W4、W5、W6;`W9` 依赖 W7、W8;`W10` 依赖 W7、W8、W9;`W11` 可随时做,最晚在 W13 前;`W12` 依赖 W10 + 服务端全部;`W13` 最后。
 
@@ -538,6 +538,7 @@ App 挂载(任何路由) ──► ChatHomeOpenEffect
 
 ## 未验证清单
 
+- 状态(2026-10-25):代码已合并进 main(尚未部署,`CHAT_HOME_ENABLED` 默认关)。任务勾选只表示代码与自动测试已合并;E2E 最终验证待完成,§8 真机清单、README 截图、管理端 `yarn admin:test` 仍未完成。
 - 网页代码已按本计划写完并通过 vitest / 类型检查 / 构建(集成分支 `feat/chat-home-integ`);尚未合并、未部署。
 - 服务端契约夹具已存在:`server/tests/fixtures/chat_home_contract.json`;`home/chat-home-contract.test.ts` 直接读它。store / 抽屉 / 设置面板的测试仍用手写样例 `chat-home-contract.stub.json`(稳定 id),它不是契约。
 - 真机(iPhone PWA / Android)上的动画、安全区、抽屉手势、自动朗读——未验证(§8)。

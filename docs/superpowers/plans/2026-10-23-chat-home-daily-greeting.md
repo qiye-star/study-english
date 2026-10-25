@@ -470,80 +470,80 @@ LLM 关闭、额度用尽、上游失败或输出不合格时使用;产出与 §
 规模:S ≈ 半小时内、M ≈ 1–2 小时、L ≈ 半天。
 
 ### Task 0: 前置核对(只读,不提交)— S
-- [ ] `git status` 记下用户未提交改动,之后只按路径 `git add`。
-- [ ] 核对 head 仍是 `0022`:`ls server/alembic/versions`;`grep -rln '"0022"' server/tests` 列出要改的钉子。
-- [ ] 核对 `list_conversations` 仍按 `updated_at desc, id desc` 排序、`POST /messages` 与 `PATCH` 仍刷新 `conversations.updated_at`(R11 分组依据);`grep -rn "zhNote\|agentPersonaId" server/app` 确认服务端没有读写 camelCase 的 config 键(§1 第 22 条)。
-- [ ] 核对 §2.1 表中的符号仍在:`conversation_out`、`list_conversations`、`create_conversation` 的计数、`USER_ROWS`、`install_agent_sources`、`builtin:partner` / `聊天伙伴`、`llm.complete`、`usage.consume`、`stats.streak`、`PROMPTS`、`DraftCreateIn`、`default_body`、`test_messages`、`agents.turn` 里的 `owned_conversation`。
-- [ ] `grep -rn "聊天伙伴" server admin web/src` 确认只有 `personas.py`;`grep -rn "set(PROMPTS)\|wordbook.explain" server/tests admin/src` 找出数提示词键的测试。
-- [ ] 找到设置注册表的测试文件名与新设置需要更新的地方(`app/core/settings_registry.py`、`server/.env.example`)。
+- [x] `git status` 记下用户未提交改动,之后只按路径 `git add`。
+- [x] 核对 head 仍是 `0022`:`ls server/alembic/versions`;`grep -rln '"0022"' server/tests` 列出要改的钉子。
+- [x] 核对 `list_conversations` 仍按 `updated_at desc, id desc` 排序、`POST /messages` 与 `PATCH` 仍刷新 `conversations.updated_at`(R11 分组依据);`grep -rn "zhNote\|agentPersonaId" server/app` 确认服务端没有读写 camelCase 的 config 键(§1 第 22 条)。
+- [x] 核对 §2.1 表中的符号仍在:`conversation_out`、`list_conversations`、`create_conversation` 的计数、`USER_ROWS`、`install_agent_sources`、`builtin:partner` / `聊天伙伴`、`llm.complete`、`usage.consume`、`stats.streak`、`PROMPTS`、`DraftCreateIn`、`default_body`、`test_messages`、`agents.turn` 里的 `owned_conversation`。
+- [x] `grep -rn "聊天伙伴" server admin web/src` 确认只有 `personas.py`;`grep -rn "set(PROMPTS)\|wordbook.explain" server/tests admin/src` 找出数提示词键的测试。
+- [x] 找到设置注册表的测试文件名与新设置需要更新的地方(`app/core/settings_registry.py`、`server/.env.example`)。
 - [ ] 不一致 → 停下报告,不要自行改裁定。
 
 ### Task S1: 迁移 0023 与模型 — M — `feat(server): chat home tables (daily conversations, greetings, prefs)`
-- [ ] `app/models.py`:`Conversation.daily_date` + 唯一约束、`ChatGreeting`(`lines` / `message_ids` / `prompt_version`)、`ChatPrefs`(§4)。
-- [ ] `alembic/versions/0023_chat_home.py`。
-- [ ] `app/admin/users_admin.py` `USER_ROWS` 加 `(ChatGreeting, "user_id")`、`(ChatPrefs, "user_id")`(按「子表先删」放在 `Conversation` 前面)。
-- [ ] head 钉子 `0022 → 0023`(Task 0 列出的文件)。
-- [ ] 测试:`tests/test_chat_home_models.py`、`test_migrations.py`、`test_changelog_models.py`、`test_library_models.py`、`test_library_catalog_models.py`、`test_admin_users.py`。
+- [x] `app/models.py`:`Conversation.daily_date` + 唯一约束、`ChatGreeting`(`lines` / `message_ids` / `prompt_version`)、`ChatPrefs`(§4)。
+- [x] `alembic/versions/0023_chat_home.py`。
+- [x] `app/admin/users_admin.py` `USER_ROWS` 加 `(ChatGreeting, "user_id")`、`(ChatPrefs, "user_id")`(按「子表先删」放在 `Conversation` 前面)。
+- [x] head 钉子 `0022 → 0023`(Task 0 列出的文件)。
+- [x] 测试:`tests/test_chat_home_models.py`、`test_migrations.py`、`test_changelog_models.py`、`test_library_models.py`、`test_library_catalog_models.py`、`test_admin_users.py`。
 
 ### Task S2: 设置与用户偏好 — M — `feat(server): chat home settings and per-user prefs`
-- [ ] `app/core/config.py`:`chat_home_enabled=False`、`chat_greeting_llm_enabled=True`、`chat_greeting_model=""`、`chat_greeting_timeout_seconds=6`(1–20)、`chat_greeting_global_daily=2000`(0–100000)、`resolved_chat_greeting_model`。
-- [ ] `app/core/settings_registry.py` 注册(组 `chat_home`,中文说明);`server/.env.example` 加占位说明。
-- [ ] `app/agents/greeting/__init__.py`、`prefs.py`(`ChatPrefs` 数据类含 `greeting_trigger` / `language` / `daily_persona_id` / `include_stats`、`DEFAULTS`、`load`、`save` 只 flush)。
-- [ ] `app/agents/greeting/CLAUDE.md`(允许的依赖、隐私、扩展点、提示词固定前后缀不可编辑)。
-- [ ] 测试:`tests/test_chat_home_prefs.py`、设置注册表测试、`test_architecture.py`。
+- [x] `app/core/config.py`:`chat_home_enabled=False`、`chat_greeting_llm_enabled=True`、`chat_greeting_model=""`、`chat_greeting_timeout_seconds=6`(1–20)、`chat_greeting_global_daily=2000`(0–100000)、`resolved_chat_greeting_model`。
+- [x] `app/core/settings_registry.py` 注册(组 `chat_home`,中文说明);`server/.env.example` 加占位说明。
+- [x] `app/agents/greeting/__init__.py`、`prefs.py`(`ChatPrefs` 数据类含 `greeting_trigger` / `language` / `daily_persona_id` / `include_stats`、`DEFAULTS`、`load`、`save` 只 flush)。
+- [x] `app/agents/greeting/CLAUDE.md`(允许的依赖、隐私、扩展点、提示词固定前后缀不可编辑)。
+- [x] 测试:`tests/test_chat_home_prefs.py`、设置注册表测试、`test_architecture.py`。
 
 ### Task S3: 「聊天伙伴」改名「学习伙伴」 — S — `feat(server): rename the built-in partner persona to 学习伙伴`
-- [ ] `app/agents/personas.py` `_builtins()`:`builtin:partner` 名称改「学习伙伴」;id、简介、人设不变(R15)。
-- [ ] 测试:`tests/test_agents_personas.py`(加名称断言)、`test_rooms_addressing_routing.py`、`test_rooms_addressing_voice.py`、`test_agents_orchestrator.py`、`test_links_agent_sources.py`。
-- [ ] 独立于其他任务,可最先合并。
+- [x] `app/agents/personas.py` `_builtins()`:`builtin:partner` 名称改「学习伙伴」;id、简介、人设不变(R15)。
+- [x] 测试:`tests/test_agents_personas.py`(加名称断言)、`test_rooms_addressing_routing.py`、`test_rooms_addressing_voice.py`、`test_agents_orchestrator.py`、`test_links_agent_sources.py`。
+- [x] 独立于其他任务,可最先合并。
 
 ### Task S4: 学习数据来源 — M — `feat(server): greeting facts registry and sources`
-- [ ] `app/agents/greeting/facts.py`:`FactCtx(user_id, offset, now, local_date)`、`FactSource` 协议、`FactsRegistry`、`facts_registry(app)`(挂 `app.state.greeting_facts`)、`gather(app, ctx)`(并行、逐源 300 ms、总 600 ms、合并成 `GreetingFacts`)。
-- [ ] 内置来源 `streak / due_vocab / yesterday_grammar / yesterday_pron / yesterday_wrong`(每个 ≤ 2 次查询、≤ 200 行,昨天窗口用 `local_midnight_utc`)。
-- [ ] `app/links/greeting_facts.py`:`WordbookToday`(背单词今日复习数、连续达标天数;`wordbook_enabled` 关或没有在学的书 → None);`install(app)`。
-- [ ] `app/main.py`:`install_agent_sources(app)` 下一行 `install_greeting_facts(app)`(单行锚点)。
-- [ ] 测试:`tests/test_chat_home_facts.py`、`test_architecture.py`。
+- [x] `app/agents/greeting/facts.py`:`FactCtx(user_id, offset, now, local_date)`、`FactSource` 协议、`FactsRegistry`、`facts_registry(app)`(挂 `app.state.greeting_facts`)、`gather(app, ctx)`(并行、逐源 300 ms、总 600 ms、合并成 `GreetingFacts`)。
+- [x] 内置来源 `streak / due_vocab / yesterday_grammar / yesterday_pron / yesterday_wrong`(每个 ≤ 2 次查询、≤ 200 行,昨天窗口用 `local_midnight_utc`)。
+- [x] `app/links/greeting_facts.py`:`WordbookToday`(背单词今日复习数、连续达标天数;`wordbook_enabled` 关或没有在学的书 → None);`install(app)`。
+- [x] `app/main.py`:`install_agent_sources(app)` 下一行 `install_greeting_facts(app)`(单行锚点)。
+- [x] 测试:`tests/test_chat_home_facts.py`、`test_architecture.py`。
 
 ### Task S5: 提示词模板、三段校验、三段模板(纯函数) — M — `feat(server): three-paragraph daily greeting prompt, parser and templates`
-- [ ] `app/agents/greeting/prompt.py`:`DEFAULT_GREETING_TEMPLATE`、`language_rule`、`render_facts`、`render_messages`(固定前缀 + 模板 + 固定输出契约,`[[user]]` 分段)、`render_test`(§6.1)。
-- [ ] `parse.py`(`{"lines": [...]}` 恰好 3 项,§6.2;`normalize_marks` 强调规则,R17)、`templates.py`(三段 × 三语言、降级表含 `include_stats=false` 三行(R16)、`GRAMMAR_CATEGORY_ZH/EN`、`PRACTICE_MINUTES`,§6.3)、`focus_hint` 规则(提示词与模板共用);`lines` 不变式断言函数 `check_lines` 与长度 / 强调常量表(§4:`MAX_MARKS_PER_LINE = 3`、`MAX_MARK_CHARS = 24`,一处定义,parse / templates / 契约后缀共用)。
-- [ ] 测试:`tests/test_chat_home_prompt.py`、`test_chat_home_parse.py`、`test_chat_home_templates.py`。
+- [x] `app/agents/greeting/prompt.py`:`DEFAULT_GREETING_TEMPLATE`、`language_rule`、`render_facts`、`render_messages`(固定前缀 + 模板 + 固定输出契约,`[[user]]` 分段)、`render_test`(§6.1)。
+- [x] `parse.py`(`{"lines": [...]}` 恰好 3 项,§6.2;`normalize_marks` 强调规则,R17)、`templates.py`(三段 × 三语言、降级表含 `include_stats=false` 三行(R16)、`GRAMMAR_CATEGORY_ZH/EN`、`PRACTICE_MINUTES`,§6.3)、`focus_hint` 规则(提示词与模板共用);`lines` 不变式断言函数 `check_lines` 与长度 / 强调常量表(§4:`MAX_MARKS_PER_LINE = 3`、`MAX_MARK_CHARS = 24`,一处定义,parse / templates / 契约后缀共用)。
+- [x] 测试:`tests/test_chat_home_prompt.py`、`test_chat_home_parse.py`、`test_chat_home_templates.py`。
 
 ### Task S6: 管理端可编辑的问候提示词(服务端) — M — `feat(server): admin-versioned chat.daily_greeting prompt with reset to default`
-- [ ] `app/services/prompts.py` `PROMPTS` 加 `chat.daily_greeting`(R14 的 spec)。
-- [ ] `app/admin/prompts_admin.py`:`default_body` 返回 `greeting.prompt.DEFAULT_GREETING_TEMPLATE`;`test_messages` 加 `chat.` 分支;`create_draft(..., from_default)`(与 `from_version` 互斥 → `PromptError(422, "Choose one source")`;审计 `after` 带 `from_default`)。
-- [ ] `app/routers/admin_prompts.py`:`DraftCreateIn.from_default: bool = False`。
-- [ ] 测试:`tests/test_prompts.py`、`test_prompts_api.py`、`test_admin_routes_guarded.py`、`test_architecture.py`。
+- [x] `app/services/prompts.py` `PROMPTS` 加 `chat.daily_greeting`(R14 的 spec)。
+- [x] `app/admin/prompts_admin.py`:`default_body` 返回 `greeting.prompt.DEFAULT_GREETING_TEMPLATE`;`test_messages` 加 `chat.` 分支;`create_draft(..., from_default)`(与 `from_version` 互斥 → `PromptError(422, "Choose one source")`;审计 `after` 带 `from_default`)。
+- [x] `app/routers/admin_prompts.py`:`DraftCreateIn.from_default: bool = False`。
+- [x] 测试:`tests/test_prompts.py`、`test_prompts_api.py`、`test_admin_routes_guarded.py`、`test_architecture.py`。
 
 ### Task S7: 生成服务 — L — `feat(server): ensure today's conversation and multi-line greeting (idempotent, capped, template fallback)`
-- [ ] `app/agents/greeting/service.py`:`ensure_today`、`claim`、`load_template`(`prompt_cache` + 运行时校验 + 回落默认)、`generate`(一次 `llm.complete` + 额度 + 超时 + 退还 + `parse`)、`write_lines`(按序写 3 条消息,`created_at` 递增,正文去掉 `*` 标记,`lines` 原样保留)、`restore_lines`(对话被删后重建时写回,R4)、`mark_seen`;scope 常量 `SCOPE_GREETING_USER="chat_greeting"`、`SCOPE_GREETING_GLOBAL="chat_greeting_global"`(放 `greeting/service.py`,不动 `agents/limits.py`);`DAILY_CONFIG_DEFAULTS`(键一律 snake_case:`agent_persona_id`、`zh_note`、`bilingual`、`auto_speak`……,§1 第 22 条)与按语言的 `zh_note` / `bilingual`。
-- [ ] `off` 分支只建对话、不碰 `chat_greetings`;重放分支(`ready` 且对话未换)不写消息;`zh` 语言渲染事实时剔除词(R7、R8);`include_stats=false` 跳过 `gather`、读取时 `facts` 返回 `{}`(R16)。
-- [ ] 日志一行:`timing event=chat_greeting status=ready source=llm|template error=<kind|-> lines=<n> ms=<n> facts=<n>`(`app.timing` 通道)。
-- [ ] 测试:`tests/test_chat_home_service.py`(§7 全部用例)。
+- [x] `app/agents/greeting/service.py`:`ensure_today`、`claim`、`load_template`(`prompt_cache` + 运行时校验 + 回落默认)、`generate`(一次 `llm.complete` + 额度 + 超时 + 退还 + `parse`)、`write_lines`(按序写 3 条消息,`created_at` 递增,正文去掉 `*` 标记,`lines` 原样保留)、`restore_lines`(对话被删后重建时写回,R4)、`mark_seen`;scope 常量 `SCOPE_GREETING_USER="chat_greeting"`、`SCOPE_GREETING_GLOBAL="chat_greeting_global"`(放 `greeting/service.py`,不动 `agents/limits.py`);`DAILY_CONFIG_DEFAULTS`(键一律 snake_case:`agent_persona_id`、`zh_note`、`bilingual`、`auto_speak`……,§1 第 22 条)与按语言的 `zh_note` / `bilingual`。
+- [x] `off` 分支只建对话、不碰 `chat_greetings`;重放分支(`ready` 且对话未换)不写消息;`zh` 语言渲染事实时剔除词(R7、R8);`include_stats=false` 跳过 `gather`、读取时 `facts` 返回 `{}`(R16)。
+- [x] 日志一行:`timing event=chat_greeting status=ready source=llm|template error=<kind|-> lines=<n> ms=<n> facts=<n>`(`app.timing` 通道)。
+- [x] 测试:`tests/test_chat_home_service.py`(§7 全部用例)。
 
 ### Task S8: 对话级 `zh_note` — S — `feat(server): per-conversation zh_note override for agent turns`
-- [ ] `app/routers/agents.py` `turn`:`conversation = await owned_conversation(...)`;`config.get("zh_note")` 合法 → `dataclasses.replace(agent, zh_note=...)`(R7;snake_case 键,camelCase `zhNote` 不认,§1 第 22 条)。合法值取 `app/agents/settings.py` 现有的 `zh_note` 取值集合,不复制字面量。
-- [ ] 测试:`tests/test_agents_turn_zh_note.py`、现有 `test_agents_*` 中 `turn` 相关文件(以 Task 0 grep 为准)。
+- [x] `app/routers/agents.py` `turn`:`conversation = await owned_conversation(...)`;`config.get("zh_note")` 合法 → `dataclasses.replace(agent, zh_note=...)`(R7;snake_case 键,camelCase `zhNote` 不认,§1 第 22 条)。合法值取 `app/agents/settings.py` 现有的 `zh_note` 取值集合,不复制字面量。
+- [x] 测试:`tests/test_agents_turn_zh_note.py`、现有 `test_agents_*` 中 `turn` 相关文件(以 Task 0 grep 为准)。
 
 ### Task S9: 路由与对话列表小改 — M — `feat(server): /api/chat-home routes; daily_date, hide_idle_daily and quota exemption on conversations`
-- [ ] `app/routers/chat_home.py`(§5);`app/main.py` 导入名 + 路由顺序(`agents` 之后、`stubs` 之前,单行插入)。
-- [ ] `app/routers/conversations.py`:`conversation_out` 加 `daily_date`;`create_conversation` 计数加 `daily_date IS NULL`(R12);`list_conversations` 加 `hide_idle_daily` 与 `tz_offset_minutes`(排序不变:`updated_at desc, id desc`,R11);`delete_conversation` 显式 `UPDATE chat_greetings SET conversation_id=NULL, message_ids='[]'`(SQLite 默认不开外键级联,与现有显式删消息同理),并加测试。
-- [ ] 若有网页契约夹具钉住 `conversation_out` 形状(Task 0 `grep -rn conversation_out server/tests web/src`),同步重录并在提交说明里写明是增量字段。
-- [ ] 测试:`tests/test_chat_home_api.py`、`tests/test_conversations.py`、`test_conversations_agent_trace.py`、`test_admin_routes_guarded.py`。
+- [x] `app/routers/chat_home.py`(§5);`app/main.py` 导入名 + 路由顺序(`agents` 之后、`stubs` 之前,单行插入)。
+- [x] `app/routers/conversations.py`:`conversation_out` 加 `daily_date`;`create_conversation` 计数加 `daily_date IS NULL`(R12);`list_conversations` 加 `hide_idle_daily` 与 `tz_offset_minutes`(排序不变:`updated_at desc, id desc`,R11);`delete_conversation` 显式 `UPDATE chat_greetings SET conversation_id=NULL, message_ids='[]'`(SQLite 默认不开外键级联,与现有显式删消息同理),并加测试。
+- [x] 若有网页契约夹具钉住 `conversation_out` 形状(Task 0 `grep -rn conversation_out server/tests web/src`),同步重录并在提交说明里写明是增量字段。
+- [x] 测试:`tests/test_chat_home_api.py`、`tests/test_conversations.py`、`test_conversations_agent_trace.py`、`test_admin_routes_guarded.py`。
 
 ### Task S10: 隐私与契约 — S — `test(server): chat home privacy scan and contract fixture`
-- [ ] `tests/test_chat_home_privacy.py`(R13,含已发布自定义提示词)、`tests/test_chat_home_contract.py` + 夹具。
-- [ ] 测试:上述两个文件。
+- [x] `tests/test_chat_home_privacy.py`(R13,含已发布自定义提示词)、`tests/test_chat_home_contract.py` + 夹具。
+- [x] 测试:上述两个文件。
 
 ### Task A1: 管理端界面 — S — `feat(admin): reset a prompt to its default; greeting sample labels`
-- [ ] `admin/src/features/prompts/api.ts`:`createDraft(key, { fromVersion?, fromDefault? })`。
-- [ ] `prompt-editor-page.tsx`:没有草稿时,在「新建草稿」旁加「以默认正文新建草稿」(运营及以上;已发布版本存在时才显示,否则两者等价);发布仍走现有确认对话框。
-- [ ] `strings.ts`:`resetToDefault` 文案;`sampleLabels` 加 `persona`(「角色名与简介」)、`language`(「语言:zh / en / bilingual」)、`facts`(「学习数据(每行一项)」);说明文案提示「安全前缀与 JSON 输出格式由服务端固定追加」。
+- [x] `admin/src/features/prompts/api.ts`:`createDraft(key, { fromVersion?, fromDefault? })`。
+- [x] `prompt-editor-page.tsx`:没有草稿时,在「新建草稿」旁加「以默认正文新建草稿」(运营及以上;已发布版本存在时才显示,否则两者等价);发布仍走现有确认对话框。
+- [x] `strings.ts`:`resetToDefault` 文案;`sampleLabels` 加 `persona`(「角色名与简介」)、`language`(「语言:zh / en / bilingual」)、`facts`(「学习数据(每行一项)」);说明文案提示「安全前缀与 JSON 输出格式由服务端固定追加」。
 - [ ] 测试:`yarn admin:typecheck && yarn admin:test`(改 `prompt-editor-page.test.tsx`、`prompts-page.test.tsx`)。
 
 ### Task D1: 文档 — S — `docs: chat home and daily greeting (server)`
-- [ ] `server/app/CLAUDE.md`(agents 行提到 `greeting/`;Pitfalls 里 head 改 `0023`)、`server/app/agents/CLAUDE.md`、`server/app/routers/CLAUDE.md`(`chat_home` 一行;`agents.turn` 的对话级 `zh_note`;对话 config 键一律 snake_case)、`server/app/links/CLAUDE.md`(`greeting_facts.py`)、`server/app/admin/CLAUDE.md`(`from_default`)、`server/README.md`(新设置、默认对话不计入上限、时区限制)。
-- [ ] 本计划文末「未验证清单」随实际情况更新;勾选只在合并且测试通过后。
+- [x] `server/app/CLAUDE.md`(agents 行提到 `greeting/`;Pitfalls 里 head 改 `0023`)、`server/app/agents/CLAUDE.md`、`server/app/routers/CLAUDE.md`(`chat_home` 一行;`agents.turn` 的对话级 `zh_note`;对话 config 键一律 snake_case)、`server/app/links/CLAUDE.md`(`greeting_facts.py`)、`server/app/admin/CLAUDE.md`(`from_default`)、`server/README.md`(新设置、默认对话不计入上限、时区限制)。
+- [x] 本计划文末「未验证清单」随实际情况更新;勾选只在合并且测试通过后。
 
 ### 网页任务组(W)— 见网页计划 §10(W0–W13)。
 
@@ -588,6 +588,7 @@ LLM 关闭、额度用尽、上游失败或输出不合格时使用;产出与 §
 
 ## 未验证清单
 
+- 状态(2026-10-25):代码已合并进 main(尚未部署,`CHAT_HOME_ENABLED` 默认关)。任务勾选只表示代码与自动测试已合并;E2E 最终验证待完成,§8 真机清单、README 截图、管理端 `yarn admin:test` 仍未完成。
 - 真实 LLM 上游(`{"lines": [...]}` JSON 输出遵从度、恰好 3 段与长度限制的命中率、三种语言、`complete` 的时延、§6.4 的 token 估算与中文 token / 字系数)——未调用。
 - §4 的长度上下限取自演示页 v2 的 mock 文本再留余量,未用真实生成结果校准;模板问候表(§6.3)的最长填充是否在上限内由 Task S5 的单测确认。
 - 迁移 0023 在 Postgres 上——未运行。
