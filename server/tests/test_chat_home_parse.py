@@ -154,13 +154,15 @@ def test_zh_allows_digits_arrow_and_chinese_punctuation_and_bilingual_sub_allows
 
 def test_lengths_and_totals():
     assert bad("en", lambda i: i[0].update(en="Too short.")) == "length"
-    assert bad("en", lambda i: i[0].update(en="word " * 40)) == "length"
+    assert bad("en", lambda i: i[0].update(en="word " * 45)) == "length"
     edge = [{"en": "a" * 29 + "."}] * 3
     assert P.check_lines(edge, "en") is None  # exactly 30 characters is the lower bound
     assert P.check_lines([{"en": "a" * 29}] * 3, "en") == "length"
-    ok140 = [{"en": "b" * 140}] * 3  # 420 in total exactly: allowed
-    assert P.check_lines(ok140, "en") is None
-    assert P.check_lines([{"en": "b" * 141}, {"en": "b" * 140}, {"en": "b" * 140}], "en") == "total"
+    ok180 = [{"en": "b" * 180}] * 3  # 540 in total exactly: allowed
+    assert P.check_lines(ok180, "en") is None
+    assert P.check_lines([{"en": "b" * 181}, {"en": "b" * 180}, {"en": "b" * 180}], "en") == "total"
+    assert P.check_lines([{"en": "b" * 201}] * 3, "en") == "length"  # a real model answer of 190 characters is fine now
+    assert P.check_lines([{"en": "b" * 190}, {"en": "b" * 175}, {"en": "b" * 170}], "en") is None
     assert P.check_lines([{"zh": "好" * 54}] * 3, "zh") == "total"
     assert P.check_lines([{"zh": "好" * 61}] * 3, "zh") == "length"
     stars = [{"en": "*" + "c" * 20 + "*" + "d" * 30}] * 3  # marks do not count: 50 characters
@@ -241,6 +243,12 @@ def test_numbers_outside_placeholders_are_rejected_in_every_language(text):
 def test_everyday_chinese_words_with_a_numeral_character_are_fine():
     text = "早上好，我们一起轻松练一会儿，一点一滴都在积累，今天是新的一天，十分期待你的表现。"
     assert P.model_text_error(text, {}) is None
+    # seen in real model answers: 一 inside everyday words, reduplication and "一周" must not cost the whole greeting
+    for ok in ("忙了一周还能坐下来练几句，这份坚持真的很棒。", "自己改一遍，再说给我听。", "练一练，理一理，说一说，看一看。",
+               "先找出那几道错题，再说一遍正确的句子。", "今天周五，周末快到了，一定要放松一下。"):
+        assert P.model_text_error(ok, {}) is None, ok
+    for claim in ("你已经练习了一天。", "这是你的第一次。", "已经坚持一个月了。", "今天复习一个单词。", "只用一分钟就够了。", "昨天有一处小错。"):
+        assert P.model_text_error(claim, {}) == "number", claim
     assert P.model_text_error("今天有几个词，多少都没关系，一直保持下去。", {}) is None
     assert P.model_text_error("Let's make this one small step together today.", {}) is None
 

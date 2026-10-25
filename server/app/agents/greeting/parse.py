@@ -14,11 +14,12 @@ LANGUAGES = ("zh", "en", "bilingual")
 MAX_MARKS_PER_LINE = 3
 MAX_MARK_CHARS = 24
 MAX_SENTENCES = 2
-# (min per item, max per item, max in total), characters after removing marks and collapsing whitespace
+# (min per item, max per item, max in total), characters; en raised 160/420 -> 200/540 by plan addendum 2026-10-25
+# (a real model's second sentence lands at 170-190 characters and 11% of answers were rejected for length), characters after removing marks and collapsing whitespace
 LIMITS = {
     "zh": {"zh": (12, 60, 160)},
-    "en": {"en": (30, 160, 420)},
-    "bilingual": {"en": (30, 160, 420), "zh": (8, 60, 130)},
+    "en": {"en": (30, 200, 540)},
+    "bilingual": {"en": (30, 200, 540), "zh": (8, 60, 130)},
 }
 BILINGUAL_ZH_MIN_CHARS = 6
 
@@ -31,11 +32,13 @@ _SENTENCE_END = re.compile(r"[。！？!?…]+|\.+(?!\d)")
 _LIST_PREFIX = re.compile(r"^\s*(?:#+\s*|[-•]\s+|\*\s+|\d+[.)]\s+)")
 _QUOTES = "\"'“”‘’「」『』"
 _SLOT = re.compile(r"\{([A-Za-z_]+)\}")
-_CN_NUMERAL = re.compile("[零〇一二三四五六七八九十百千万亿两]")
-# everyday words that contain a numeral character but state no quantity; removed before the numeral check
+# Chinese numerals. 一 is everywhere in everyday words (一起 一遍 练一练 忙了一周 ...) and the real model uses them in 3 of 6 zh
+# answers, so it only counts when it states a quantity of what the facts are about (a day, minute, word, time ... or "第一").
+_CN_NUMERAL = re.compile("[零〇二三四五六七八九十百千万亿两]")
+_CN_ONE_CLAIM = re.compile("第一|一(?:天|年|分钟|小时|次|处|条)|一个?(?:月|单词|词|错)")
+# words that contain a numeral character but state no quantity; removed before the numeral check
 _CN_NUMERAL_OK = ("周一", "周二", "周三", "周四", "周五", "周六", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
-                  "礼拜一", "礼拜二", "礼拜三", "礼拜四", "礼拜五", "礼拜六", "一点一滴", "一遍", "一番", "一阵", "一场", "一边", "一段", "一回", "一并", "一起", "一直", "一定", "一点", "一些", "一下", "一会", "一切", "一样", "一般", "一同", "一路", "一旦",
-                  "一个", "一句", "一份", "一步", "十分", "万一", "千万", "唯一", "统一", "的一天")
+                  "礼拜一", "礼拜二", "礼拜三", "礼拜四", "礼拜五", "礼拜六", "十分", "万一", "千万", "的一天")
 _EN_NUMBER = re.compile(r"\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|"
                         r"sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|"
                         r"hundred|thousand|million|dozen)\b", re.IGNORECASE)
@@ -142,7 +145,7 @@ def model_text_error(text: str, slots: Mapping) -> str | None:
         return "number"
     for word in _CN_NUMERAL_OK:
         rest = rest.replace(word, " ")
-    if _CN_NUMERAL.search(rest) or _EN_NUMBER.search(rest):
+    if _CN_NUMERAL.search(rest) or _CN_ONE_CLAIM.search(rest) or _EN_NUMBER.search(rest):
         return "number"
     return None
 

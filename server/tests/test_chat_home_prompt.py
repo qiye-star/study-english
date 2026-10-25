@@ -47,11 +47,11 @@ def test_fixed_prefix_and_contract_always_frame_the_request(language):
 
 def test_contract_renders_only_the_current_language_limits():
     en = G.output_contract("en")
-    assert "en: 30-160 characters each, 420 in total." in en and "zh:" not in en
+    assert "en: 30-200 characters each, 540 in total." in en and "zh:" not in en
     zh = G.output_contract("zh")
     assert "zh: 12-60 characters each, 160 in total, no Latin letters." in zh and "en:" not in zh
     bi = G.output_contract("bilingual")
-    assert "en: 30-160" in bi and "zh: 8-60 characters each, 130 in total." in bi
+    assert "en: 30-200" in bi and "zh: 8-60 characters each, 130 in total." in bi
     assert len(bi) <= 1200
 
 
