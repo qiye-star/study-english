@@ -12,6 +12,12 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      # 构建时下载默认走国内镜像(apt / PyPI: 清华 TUNA,npm: npmmirror),见 server/Dockerfile 开头。
+      # 海外构建或镜像不可用时取消注释,置空即改回官方源;基础镜像可用 NODE_IMAGE / PYTHON_IMAGE 指向自己的镜像仓库。
+      # args:
+      #   APT_MIRROR: ""
+      #   PYPI_INDEX: ""
+      #   NPM_REGISTRY: ""
     env_file: ./server/.env
     ports:
       - "127.0.0.1:8000:8000"
