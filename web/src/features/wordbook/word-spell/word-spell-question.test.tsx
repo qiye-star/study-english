@@ -110,7 +110,7 @@ describe("WordSpellQuestion (看中文拼英文)", () => {
 
   it("after a wrong answer: replay button, and a 看过单词 mark when the word was peeked", () => {
     const wrong = { correct: false, outcome: "wrong", grade: "forgot", expected: "talk", correctOption: null, diff: [], item: null, applied: true, rating: null, spotCheck: false, check: null } as never;
-    const props = { item: ITEM, mode: "meaning" as const, result: null, busy: false, onSubmit: vi.fn(), speaker: speaker() };
+    const props: Props = { item: ITEM, mode: "meaning", result: null, busy: false, onSubmit: vi.fn(), speaker: speaker() };
     const { rerender } = render(<WordSpellQuestion {...props} />);
     fireEvent.click(screen.getByTestId("word-spell-peek-btn"));
     rerender(<WordSpellQuestion {...props} result={wrong} />);
