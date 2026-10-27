@@ -6,7 +6,7 @@ import { LookupLayer } from "~/features/lookup";
 import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
-import { TestPointerEvent, installHighlightStub, stubCaret, tapAt, unstubCaret } from "~/test/tap-lookup";
+import { TestPointerEvent, stubCaret, tapAt, unstubCaret } from "~/test/tap-lookup";
 import { MessageBubble } from "./message-bubble";
 import type { UiMessage } from "./ui-message";
 
@@ -15,24 +15,19 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.f
 const TEXT = "Nice to meet you, traveller.";
 const reply: UiMessage = { key: "a1", role: "assistant", status: "done", content: TEXT };
 
-let highlights: ReturnType<typeof installHighlightStub>;
 beforeAll(() => { vi.stubGlobal("PointerEvent", TestPointerEvent); });
 afterAll(() => { vi.unstubAllGlobals(); });
-beforeEach(() => { highlights = installHighlightStub(); indexedDB.deleteDatabase("enjoy-web"); resetKvCacheForTests(); localStorage.clear(); });
+beforeEach(() => { indexedDB.deleteDatabase("enjoy-web"); resetKvCacheForTests(); localStorage.clear(); });
 afterEach(() => { unstubCaret(); window.getSelection()?.removeAllRanges(); });
 
 describe("tap-to-lookup on a chat bubble", () => {
-  it("first tap underlines the word, second tap shows the lookup bar", async () => {
+  it("one tap selects the word and shows the lookup bar", async () => {
     const mock = createFetchMock({ "POST /api/dictionary/lookup": () => json({ hit: false }) });
     renderWithProviders(<><MessageBubble message={reply} /><LookupLayer /></>, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
     const textNode = screen.getByText(TEXT).firstChild!;
     stubCaret(textNode, TEXT.indexOf("traveller") + 3);
     tapAt(screen.getByText(TEXT));
-    expect(highlights.rangesOf("lookup-pending").map((r) => r.toString())).toEqual(["traveller"]);
-    expect(screen.queryByTestId("lookup-bar")).toBeNull();
-    tapAt(screen.getByText(TEXT));
     expect(window.getSelection()!.toString()).toBe("traveller");
     expect(await screen.findByTestId("lookup-bar")).toBeInTheDocument();
-    expect(highlights.registry.has("lookup-pending")).toBe(false);
   });
 });

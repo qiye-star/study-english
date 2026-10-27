@@ -357,11 +357,3 @@ html[data-glass="v2"] .mat-sheet {
   }
 }
 /* ===== liquid glass end ===== */
-/* ===== tap-to-lookup marker (CSS Custom Highlight API; engines without it get a fixed-layer underline from pending-mark.ts) ===== */
-::highlight(lookup-pending) {
-  background-color: transparent;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
-  text-decoration-color: rgb(var(--blue));
-}
