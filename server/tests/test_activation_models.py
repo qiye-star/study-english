@@ -28,7 +28,7 @@ def _pk(con, table: str) -> list[str]:
 def test_head_is_0030_and_follows_0029(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0031"]
+    assert script.get_heads() == ["0032"]
     assert script.get_revision("0030").down_revision == "0029"
 
 

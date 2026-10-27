@@ -1120,7 +1120,8 @@ class CatalogItem(Base):
     """系统所有的一条内置素材(只存音频 + 封面,`library/_catalog/<id>/`)。标题、许可说明、句子只给界面;
     日志、审计、计量只记 id 与数字。删除规则见 spec R1(退役 / 回收 / 强制删除)。"""
     __tablename__ = "catalog_items"
-    __table_args__ = (Index("ix_catalog_items_status_created_at", "status", "created_at"),)
+    __table_args__ = (Index("ix_catalog_items_status_created_at", "status", "created_at"),
+                      Index("ix_catalog_items_source_md5", "source_md5"))
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     title: Mapped[str] = mapped_column(String(200))
@@ -1131,6 +1132,9 @@ class CatalogItem(Base):
     source_host: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # cleared when ready (spec R6)
     status: Mapped[str] = mapped_column(String(12))  # uploading / queued / processing / ready / failed / canceled
+    # plan 2026-10-27 R-S1: fingerprint of the original file (desktop videos.md5), set only by package imports. Not
+    # unique (failed / retired rows may repeat it). Never in admin_out / public_out, copies, bundles, audit or logs.
+    source_md5: Mapped[str | None] = mapped_column(String(32), nullable=True)
     stage: Mapped[str | None] = mapped_column(String(16), nullable=True)
     progress: Mapped[int] = mapped_column(SmallInteger, default=0, server_default="0")
     error_kind: Mapped[str | None] = mapped_column(String(24), nullable=True)
