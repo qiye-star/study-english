@@ -23,7 +23,7 @@ def _indexes(con, table: str) -> dict[str, bool]:
 def test_head_is_0025_and_0022_follows_0021(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0032"]
+    assert script.get_heads() == ["0033"]
     assert script.get_revision("0022").down_revision == "0021"
 
 
@@ -83,7 +83,7 @@ def test_models_declare_the_frozen_names():
                     "stage", "progress", "error_kind", "upload_total", "upload_received", "duration_ms", "media_path",
                     "poster_path", "media_mime", "media_bytes", "sub_source", "asr_seconds", "seg_count",
                     "low_confidence", "ai_lang", "role_names", "published", "published_at", "retired_at", "created_at",
-                    "updated_at"}  # role_names: plan L5 R2 (0029)
+                    "updated_at", "source_md5"}  # role_names: plan L5 R2 (0029); source_md5: plan 2026-10-27 R-S1 (0033)
     assert set(CatalogSegment.__table__.columns.keys()) == {"catalog_id", "idx", "start_ms", "end_ms", "text", "zh",
                                                             "zh_lang", "analysis", "analysis_lang", "flags", "speaker"}  # plan L5 R2
     assert "catalog_id" in LibraryItem.__table__.columns

@@ -4,6 +4,7 @@
 标题、许可说明、句子、译文只给界面;日志只有 id 与数字。目录只缓存 `ai_lang` 一种语言的译文与分析(E11)。
 种类由 `media_mime` 推出(`kind_of`);媒体替换后 `sync_copies` 让副本跟随。"""
 import logging
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
@@ -107,12 +108,14 @@ def segment_admin_out(seg: CatalogSegment) -> dict:
 
 async def create(session: AsyncSession, *, source: str, status: str, title: str, level: str | None, tags: list[str],
                  license_note: str | None, ai_lang: str, source_url: str | None = None,
-                 source_host: str | None = None, upload_total: int = 0) -> CatalogItem:
+                 source_host: str | None = None, upload_total: int = 0,
+                 source_md5: str | None = None) -> CatalogItem:
     now = utcnow()
     row = CatalogItem(title=(title or "")[:TITLE_MAX], level=level, tags=",".join(tags) or None,
                       license_note=license_note, source=source, status=status, source_url=source_url,
                       source_host=(source_host or None) and source_host[:64], ai_lang=ai_lang,
-                      upload_total=upload_total, upload_received=0, created_at=now, updated_at=now)
+                      upload_total=upload_total, upload_received=0, source_md5=source_md5,
+                      created_at=now, updated_at=now)
     session.add(row)
     await session.commit()
     return row
@@ -149,6 +152,20 @@ async def list_all(session: AsyncSession) -> list[CatalogItem]:
                                                                     CatalogItem.id.desc()))).all())
 
 
+async def find_by_source_md5(session: AsyncSession, md5s: list[str]) -> list[CatalogItem]:
+    """Every row (any status, retired or not) whose package fingerprint is one of `md5s`, newest first (R-S3)."""
+    return list((await session.scalars(select(CatalogItem).where(CatalogItem.source_md5.in_(md5s))
+                                       .order_by(CatalogItem.created_at.desc(), CatalogItem.id.desc()))).all())
+
+
+async def has_active_source_md5(session: AsyncSession, md5: str) -> bool:
+    """R-S2: an unretired item in an active or ready state already holds this package (failed / canceled do not)."""
+    found = await session.scalar(select(CatalogItem.id).where(
+        CatalogItem.source_md5 == md5, CatalogItem.retired_at.is_(None),
+        CatalogItem.status.in_(("uploading", "queued", "processing", "ready"))).limit(1))
+    return found is not None
+
+
 async def segments_of(session: AsyncSession, catalog_id: str) -> list[CatalogSegment]:
     return list((await session.scalars(select(CatalogSegment).where(CatalogSegment.catalog_id == catalog_id)
                                        .order_by(CatalogSegment.idx))).all())
@@ -170,6 +187,41 @@ async def write_segments(session: AsyncSession, row: CatalogItem, sentences: lis
                        flags=",".join(flags[i]) if flags is not None and i < len(flags) and flags[i] else None)
         for i, s in enumerate(sentences))
     row.seg_count = len(sentences)
+
+
+def _text_key(text: str) -> str:
+    """The key of `store.same_text`: whitespace-insensitive equality of two sentences."""
+    return " ".join(text.split())
+
+
+async def rewrite_segments(session: AsyncSession, row: CatalogItem, sentences: list[Sentence]) -> int:
+    """R-S4 (plan 2026-10-27): replace every sentence with the ones of new subtitles. A new sentence whose text equals
+    an old one (same_text) takes that sentence's translation, analysis and speaker; each old sentence is carried at most
+    once, in order. Flags are cleared; the item's subtitle source becomes "uploaded" and low_confidence false. Column
+    tuples are read (no ORM entities), so the delete and the re-insert on the same keys do not conflict. Caller commits.
+    Returns how many sentences were carried over."""
+    old = (await session.execute(select(CatalogSegment.text, CatalogSegment.zh, CatalogSegment.zh_lang,
+                                        CatalogSegment.analysis, CatalogSegment.analysis_lang, CatalogSegment.speaker)
+                                 .where(CatalogSegment.catalog_id == row.id).order_by(CatalogSegment.idx))).all()
+    pool: dict[str, deque] = {}
+    for text, zh, zh_lang, analysis, analysis_lang, speaker in old:
+        pool.setdefault(_text_key(text), deque()).append((zh, zh_lang, analysis, analysis_lang, speaker))
+    await session.execute(delete(CatalogSegment).where(CatalogSegment.catalog_id == row.id))
+    carried = 0
+    fresh_rows = []
+    for i, sent in enumerate(sentences):
+        queue = pool.get(_text_key(sent.text))
+        prior = queue.popleft() if queue else None
+        carried += 1 if prior else 0
+        zh, zh_lang, analysis, analysis_lang, speaker = prior or (None, None, None, None, None)
+        fresh_rows.append(CatalogSegment(catalog_id=row.id, idx=i, start_ms=sent.start_ms, end_ms=sent.end_ms,
+                                         text=sent.text, zh=zh, zh_lang=zh_lang, analysis=analysis,
+                                         analysis_lang=analysis_lang, speaker=speaker, flags=None))
+    session.add_all(fresh_rows)
+    row.seg_count = len(sentences)
+    row.sub_source = "uploaded"
+    row.low_confidence = False
+    return carried
 
 
 async def set_translations(session: AsyncSession, catalog_id: str, entries: list[tuple[int, str, str]],

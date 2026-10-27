@@ -125,7 +125,8 @@ async def create_import(session, app, actor, *, url: str, meta: dict) -> dict:
     return {"item": await row_out(session, app, row)}
 
 
-async def start_upload(session, app, actor, *, filename: str, size: int, meta: dict) -> dict:
+async def start_upload(session, app, actor, *, filename: str, size: int, meta: dict,
+                       source_md5: str | None = None) -> dict:
     s = app.state.settings
     if not s.library_available:
         raise _err(503, "Media tools are not installed")
@@ -134,17 +135,35 @@ async def start_upload(session, app, actor, *, filename: str, size: int, meta: d
         raise _err(400, "Unsupported file type")
     if size > s.library_max_upload_mb * limits.MB:
         raise _err(413, "File is too large")
+    if source_md5 is not None and await catalog_store.has_active_source_md5(session, source_md5):
+        raise _err(409, "Item already imported")  # R-S2: checked before any row exists (no md5 in the message)
     if not meta.get("title"):
         meta = {**meta, "title": store.title_from_filename(filename)}
-    row = await catalog_store.create(session, source="upload", status="uploading", upload_total=size, **meta)
+    row = await catalog_store.create(session, source="upload", status="uploading", upload_total=size,
+                                     source_md5=source_md5, **meta)
     tmp = paths.catalog_tmp_dir(data_dir(app), row.id)
     tmp.mkdir(parents=True, exist_ok=True)
     (tmp / f"upload.{ext}.part").write_bytes(b"")
-    await audit.record(session, actor, "catalog.upload", target_type="catalog_item", target_id=row.id,
-                       after={"bytes": size})
+    after = {"bytes": size, "package": True} if source_md5 is not None else {"bytes": size}
+    await audit.record(session, actor, "catalog.upload", target_type="catalog_item", target_id=row.id, after=after)
     await session.commit()
     logger.info("library catalog upload started catalog=%s bytes=%d", row.id, size)
     return {"catalog_id": row.id, "chunk_bytes": limits.CHUNK_BYTES}
+
+
+async def package_check(session, app, md5s: list[str]) -> dict:
+    """R-S3: read-only. Matches for the requested fingerprints only; titles are fine (catalog content, spec R5).
+    The log carries counts; the fingerprints never leave the request and the response."""
+    rows = await catalog_store.find_by_source_md5(session, list(dict.fromkeys(md5s)))
+    refs = await catalog_store.ref_counts(session, [r.id for r in rows])
+    blobs = get_store(app)
+    matches = [{"source_md5": r.source_md5, "catalog_id": r.id, "title": r.title, "status": r.status,
+                "published": r.published, "retired": r.retired_at is not None, "seg_count": r.seg_count,
+                "duration_ms": r.duration_ms, "media_missing": await catalog_store.media_missing_stored(blobs, r),
+                "refs": refs.get(r.id, 0), "upload_received": r.upload_received, "upload_total": r.upload_total}
+               for r in rows]
+    logger.info("library catalog package check n=%d matched=%d", len(md5s), len(matches))
+    return {"matches": matches}
 
 
 def upload_state(row: CatalogItem) -> dict:
@@ -186,14 +205,16 @@ async def put_chunk(session, app, catalog_id: str, n: int, data: bytes) -> dict:
 async def put_subtitles(session, app, catalog_id: str, data: bytes) -> dict:
     """While uploading, or to retry a `failed(no_subtitles)` item (then it is queued again)."""
     row = await get_row(session, catalog_id)
+    tmp = paths.catalog_tmp_dir(data_dir(app), row.id)
+    # plan 2026-10-27 R-S4: a media replacement (flagged) may also bring subtitles; it rebuilds the sentences
+    replacing = row.status == "uploading" and row.seg_count > 0 and (tmp / REPLACE_MARK).is_file()
     if not ((row.status == "uploading" and row.seg_count == 0)
-            or (row.status == "failed" and row.error_kind == "no_subtitles")):
-        raise _err(409, "Subtitles cannot be changed now")  # R-KV8: a media replacement keeps its sentences
+            or (row.status == "failed" and row.error_kind == "no_subtitles") or replacing):
+        raise _err(409, "Subtitles cannot be changed now")  # R-KV8: a plain re-upload of media keeps its sentences
     try:
         cues = subtitles.parse(data)
     except LibraryError:
         raise _err(400, "Invalid subtitle file") from None
-    tmp = paths.catalog_tmp_dir(data_dir(app), row.id)
     tmp.mkdir(parents=True, exist_ok=True)
     (tmp / UPLOADED_SUBS).write_bytes(data)
     if row.status == "failed":

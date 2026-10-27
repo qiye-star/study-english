@@ -26,7 +26,7 @@ def _cols(con, table: str) -> set[str]:
 def test_0029_follows_the_previous_head(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0032"]  # L4 added 0030 on top; 0029 itself is unchanged
+    assert script.get_heads() == ["0033"]  # L4 added 0030 on top; 0029 itself is unchanged
     assert script.get_revision("0029").down_revision == "0028"
 
 

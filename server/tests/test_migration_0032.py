@@ -37,10 +37,10 @@ def _insert(db: Path, word: str, pos: str, src_hash: str) -> None:
         con.close()
 
 
-def test_head_is_0032_and_follows_0031(tmp_path, monkeypatch):
+def test_0032_wordbook_simple_defs_follows_0031_and_0033_is_head(tmp_path, monkeypatch):
     cfg, _ = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0032"]
+    assert script.get_heads() == ["0033"]
     assert script.get_revision("0032").down_revision == "0031"
 
 

@@ -657,6 +657,10 @@ timing event=realtime_call close=1000 interrupts=0 seconds=42 turns=3
 
 管理端对一条就绪、未退役的精选条目点「导出 bundle」:在存储里写 `bundles/<条目>/manifest.json`(元数据、句子与译文、媒体与封面的键、字节与 sha256),**不含**任何用户数据、副本数、发布状态或审计。在另一套实例上,先把两个前缀(`library/_catalog/<条目>/`、`bundles/<条目>/`)同步到它的桶(`mc mirror`,**未验证**:它是否保留用户元数据;导入时缺少元数据会流式重算 sha256,所以不影响正确性),再在管理端「从 bundle 导入」选择它并填写理由。导入只建行、不识别、不翻译、不花模型费用,条目默认未发布。
 
+### 精选库导入包(本地导出 → 管理端导入)
+
+管理端「精选库」工具栏的「导入包」读取本机导出的 zip(导出脚本见 `scripts/CLAUDE.md`)。服务端只提供三件事:上传开始可带 `source_md5`(包内视频的原始文件指纹,`POST /api/admin/library/catalog/uploads`);同 md5 的未退役条目在 `uploading` / `queued` / `processing` / `ready` 时拒绝再建(409 `Item already imported`);`POST /api/admin/library/catalog/packages/check` 只读地报告哪些 md5 已在库里(标题、状态、是否发布、副本数)。单文件上限仍是 `LIBRARY_MAX_UPLOAD_MB`(默认 500,管理端可热改)。「覆盖」即「替换媒体 + 换字幕」:只对**未发布**条目原位进行,目录句子按新字幕重建(文字相同的句子保留译文 / 分析 / 说话人),已加入的学习者副本保留自己的句子、成绩、配音与续播,只跟随新媒体;已发布的条目需先下架。
+
 ### 管理端与自检
 
 - 数据页显示「存储后端」「回退」「回退命中」(只显示名称,不显示端点或桶名)。

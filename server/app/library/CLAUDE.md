@@ -29,10 +29,11 @@
   `library.translate` / `library.analyze`(管理端可编辑,默认值取自桌面端 enjoy);大模型只经 `providers/llm.complete`
 - `pipeline.py` – 一个条目的流水线(`PipelineDeps.timed_transcriber` 给带时间的转写);取回阶段接口 `FetchRequest` / `FetchResult` / `FetchStage`(默认 `NoFetch`,S2 注册 yt-dlp)
 - `catalog_store.py` – 精选库(spec `2026-10-14-curated-library-design.md`):系统所有的 `catalog_items` / `catalog_segments`、
+  导入包(plan `2026-10-27-library-local-export-cloud-import`):`find_by_source_md5` / `has_active_source_md5`(`source_md5` 的查询与重复判定)、`rewrite_segments`(换字幕时重建句子,文字相同的句子承接译文 / 分析 / 说话人)、
   输出形状(`public_out` / `admin_out`)、导入队列(`claim_next` / `fail` / `recover`)、**添加即复制** `add_to_library`(幂等,
   唯一索引 `(user_id, catalog_id)`)、`fill_translations`、`kind_of`(由 `media_mime` 推出,无列)、`sync_copies`、引用数 `refs`(查询算,不存计数)、退役回收 `collect_*`、强制删除 `purge`
 - `catalog_import.py` – (计划 SI)一条目录条目的处理:取回(`FetchRequest.system=True`)→ 探测 → 封面 → 转码(视频源 `normalize` ≤ 720p / ≤ 1600 kbps 保留画面,音频源 `audio_only`)→ 字幕 / 识别 →
-  分句 → 翻译(`ai.translate_texts`,系统计费)→ ready(未发布);有句子且暂存里有 `replace.flag` → 只替换媒体(`_replace_stage`)
+  分句 → 翻译(`ai.translate_texts`,系统计费)→ ready(未发布);有句子且暂存里有 `replace.flag` → 只替换媒体(`_replace_stage`);暂存里有字幕时先解析(坏字幕在探测之前失败),同一提交里重建目录句子(R-S4)
 - `catalog_jobs.py` – (计划 SI)`CatalogJobs`(`app.state.catalog`):一次一个、无轮询、`kick()` 触发、启动恢复;`pending` 在 `tests/background.py`
 - `roles.py` – (L5 R3–R5)句子角色 A–F 与角色名:纯函数 `merge` / `roles_out` / `clean_role` / `clean_name`;读写 `apply` / `apply_catalog` / `sync_catalog_roles`(不提交);`write_segments` 承接角色(按压空白后的文字)。角色名与句子一样是用户内容,不进日志
 - `roles_ai.py` – (L5 R7)角色的 LLM 建议:`render` / `parse`(`N. X`,只收 A–F)、用户侧 `suggest`(按句计额度 `dubbing_suggest`,整段预留,失败退还)、管理端 `suggest_catalog`(系统付费,计入 `library_cat_ai`);提示词 `library.roles` 可编辑
@@ -86,3 +87,6 @@ AI:`tests/test_library_ai.py`(纯函数、额度、编排、管理端提示词)�
 - 链接预检(`urlcheck.precheck`):配置了 `LIBRARY_YTDLP_PROXY`(非空白)时 `resolve=False`——只做语法检查(协议 / 长度 / 字符 / userinfo / 端口 / 黑名单名与后缀 / 字面 IP),**不做本地 DNS 与解析地址检查**(代理在远端解析,本地解析器可能被污染);无代理时行为不变。路由 `library_import` 与取回阶段 `ytdlp.fetch` 的复查用同一规则。永远不记录代理值。
 - 粘贴分享文本:`urlcheck.extract_link` 在导入接口里先于预检运行——去空白后仍含空白的字符串取第一个 `https?://\S+`(去掉尾部标点与全角收尾符),没找到就原样交给预检(仍是 `chars`);无空白的字符串不动。提取出的链接照常走完整预检。
 - 启动恢复不能让 lifespan 崩:`CatalogJobs.recover()` 在 lifespan 里被 await(库 worker 的恢复在自己的任务里,失败只死任务),所以它自己吞掉异常、只记 `error=<类名>`(无 SQL / id / 文本)并返回 0;测试常在应用启动**之后**才 `create_all`,启动时表还不存在。
+- 导入包的 `catalog_items.source_md5`(迁移 0032)只在管理端上传的 POST 体与 `packages/check` 回包里出现;不进日志 / 审计(只有 `package: true`)/ `admin_out` / `public_out` / 副本 / bundle。非唯一索引:失败、取消、退役的旧行可以与新行同 md5;
+  重复拦截只看未退役的 `uploading` / `queued` / `processing` / `ready` 行(`has_active_source_md5`),先于建行;检查与建行不在同一事务里,两个请求同时到达仍可能各建一条。
+- 带字幕的替换(R-S4)只重建**目录**句子;已加入的副本保留它们自己的句子、译文、成绩、配音与续播(`sync_copies` 只改媒体),副本不会跟随新字幕(spec E10)。

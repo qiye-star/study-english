@@ -54,6 +54,12 @@ class UploadIn(Meta):
     filename: str = Field(min_length=1, max_length=255)
     size: int = Field(ge=1)
     ai_lang: str | None = Field(default=None, max_length=16)
+    source_md5: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")  # R-S2: desktop videos.md5 (package)
+
+
+class PackageCheckIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_md5s: list[Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]] = Field(min_length=1, max_length=1000)
 
 
 class ReplaceIn(BaseModel):
@@ -150,8 +156,16 @@ async def catalog_upload(body: UploadIn, request: Request, ctx: AdminContext = D
         meta = catalog_admin.clean_meta(title=body.title, level=body.level, tags=body.tags,
                                         license_note=body.license_note, ai_lang=body.ai_lang, partial=False)
         return await catalog_admin.start_upload(session, request.app, ctx.actor, filename=body.filename,
-                                                size=body.size, meta=meta)
+                                                size=body.size, meta=meta, source_md5=body.source_md5)
     return await _guard(session, call)
+
+
+# plan R-S3: declared before `/{catalog_id}` routes so the literal `packages` is not taken for a catalog id
+@router.post("/packages/check")
+async def catalog_package_check(body: PackageCheckIn, request: Request,
+                                _: AdminContext = Depends(require("operator")),
+                                session: AsyncSession = Depends(get_session)):
+    return await _guard(session, lambda: catalog_admin.package_check(session, request.app, body.source_md5s))
 
 
 @router.put("/uploads/{catalog_id}/chunks/{n}")
