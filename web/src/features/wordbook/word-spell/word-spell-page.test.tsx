@@ -84,6 +84,31 @@ describe("WordbookWordSpellPage (单词拼写)", () => {
     expect(screen.getByText("朗读不可用,只能看中文拼英文")).toBeTruthy();
   });
 
+  it("switching the mode mid-question clears that question, keeps the progress, and asks nothing", async () => {
+    const mock = page({ "POST /api/wordbook/word-spell/start": () => json(START) });
+    await startRound();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "ta" } });
+    fireEvent.click(screen.getByTestId("word-spell-mode-meaning"));
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(screen.getByText("1 / 10")).toBeTruthy();
+    expect(screen.getByTestId("word-spell-mode-meaning")).toHaveAttribute("aria-checked", "true");
+    expect(mock.calls.some((c) => c.url.pathname === "/api/wordbook/answers")).toBe(false);
+  });
+
+  it("skip moves on without submitting and the summary records it", async () => {
+    const mock = page({
+      "POST /api/wordbook/word-spell/start": () => json(START),
+      "POST /api/wordbook/answers": () => json(ANSWER),
+    });
+    await startRound();
+    fireEvent.click(screen.getByTestId("word-spell-skip"));
+    expect(screen.getByText("2 / 10")).toBeTruthy();
+    expect(mock.calls.some((c) => c.url.pathname === "/api/wordbook/answers")).toBe(false);
+    for (let i = 1; i < WORDS.length; i += 1) fireEvent.click(screen.getByTestId("word-spell-skip"));
+    expect(await screen.findByText("本轮拼写完成")).toBeTruthy();
+    expect(screen.getByText("跳过 10 题")).toBeTruthy();
+  });
+
   it("a full round of ten ends in the summary, without touching the review progress", async () => {
     const mock = page({
       "POST /api/wordbook/word-spell/start": () => json(START),

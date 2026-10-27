@@ -14,7 +14,9 @@
       "peekAria": "显示单词",
       "peekButton": "想不起来?点这里看单词",
       "peekHint": "想不起来?点下面的按钮,或点输入框的边框看单词",
-      "finish": "看结果"
+      "finish": "看结果",
+      "skip": "跳过",
+      "skipped": "跳过 {{n}} 题"
     }
   }
 }

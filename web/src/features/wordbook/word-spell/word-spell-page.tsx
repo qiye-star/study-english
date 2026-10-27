@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@renderer/lib/utils";
+import { translateServerError } from "~/api/error-messages";
 import { useAuth } from "~/auth/auth-context";
 import { SurfaceCard } from "~/components/surface-card";
 import { PageHeader } from "~/layout/page-header";
@@ -11,13 +12,34 @@ import { SessionSummary, type SessionStats } from "../session-summary";
 import { PRIMARY } from "../ui";
 import { useSpeaker } from "../use-speaker";
 import { WORDBOOK_SERVER_ERRORS, submitAnswer, type AnswerResult, type FreeItem } from "../wordbook-api";
-import { translateServerError } from "~/api/error-messages";
 import { readPrefs, writePrefs, type WordSpellMode } from "./prefs";
-import { WordSpellQuestion } from "./word-spell-question";
 import { startWordSpell, type WordSpellCount } from "./word-spell-api";
+import { WordSpellQuestion } from "./word-spell-question";
 
 type Phase = "start" | "run" | "done";
 const COUNTS: WordSpellCount[] = [10, 20];
+
+/** 玩法分段控件(开始卡与答题页共用)。选中态要明显:蓝框 + 蓝底。 */
+function ModeControl({ mode, dictationOff, onPick }: { mode: WordSpellMode; dictationOff: boolean; onPick: (m: WordSpellMode) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div role="radiogroup" aria-label={t("web.wordSpell.title")} data-testid="word-spell-mode" className="grid grid-cols-2 gap-2">
+      {(["dictation", "meaning"] as const).map((m) => {
+        const off = m === "dictation" && dictationOff;
+        const on = mode === m;
+        return (
+          <button key={m} type="button" role="radio" aria-checked={on} aria-disabled={off} data-testid={`word-spell-mode-${m}`}
+            onClick={() => onPick(m)}
+            className={cn("h-11 rounded-button border-[0.5px] px-3 text-sub font-semibold",
+              on ? "border-blue bg-blue-tint text-blue liquid:bg-wash liquid:text-ink" : "border-hair text-ink-2 liquid:text-ink-2",
+              off && "opacity-50")}>
+            {t(`web.wordSpell.modes.${m}`)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** 单词拼写页(plan 2026-10-27 R-W5):开始卡 → 一题一屏 → 答后结果与「下一个」→ 小结。路由 /wordbook/spell/words。 */
 export function WordbookWordSpellPage() {
@@ -34,11 +56,14 @@ export function WordbookWordSpellPage() {
   const [result, setResult] = useState<AnswerResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [skipped, setSkipped] = useState(0);
   const firstTry = useRef(0);
 
   // 没有配置朗读时只能看中文拼英文(plan R-W5);配置还在加载时先按选择显示
-  const mode: WordSpellMode = !speaker.loading && !speaker.available ? "meaning" : chosen;
+  const dictationOff = !speaker.loading && !speaker.available;
+  const mode: WordSpellMode = dictationOff ? "meaning" : chosen;
   const current = items[index];
+  // 朗读 id 与题目组件的首个播放 id 一致(`<key>:q`),重播由题目组件换新 id
   const speakCurrent = (item: FreeItem | undefined) => {
     if (item) speaker.listen(`${item.card.key}:q`, item.card.word, "us");
   };
@@ -52,6 +77,7 @@ export function WordbookWordSpellPage() {
       setItems(set.items);
       setIndex(0);
       setResult(null);
+      setSkipped(0);
       firstTry.current = 0;
       setShownMode(mode);
       setPhase("run");
@@ -80,7 +106,8 @@ export function WordbookWordSpellPage() {
     }
   };
 
-  const next = () => {
+  // 下一题(答完后)或跳过(未答):两者都换到下一题,跳过的题不提交、不计入首次正确
+  const advance = () => {
     const n = index + 1;
     setResult(null);
     if (n >= items.length) {
@@ -91,10 +118,16 @@ export function WordbookWordSpellPage() {
     setShownMode(mode);
     if (mode === "dictation") speakCurrent(items[n]);
   };
+  const skip = () => {
+    if (result || busy) return;
+    setSkipped((k) => k + 1);
+    advance();
+  };
 
-  // 切换玩法:答题中途切换只清当前题的输入与偷看(换 key 重挂),题目不变、不提交;答完的题切换只影响下一题
+  // 切换玩法:答题中途切换只清当前题的输入与偷看(换 key 重挂),进度与题目不变、不提交、不确认;
+  // 答完的题切换只影响下一题
   const pick = (m: WordSpellMode) => {
-    if (m === "dictation" && !speaker.available) return;
+    if (m === "dictation" && dictationOff) return;
     setChosen(m);
     writePrefs({ wordSpellMode: m });
     if (phase === "run" && result === null) {
@@ -111,24 +144,13 @@ export function WordbookWordSpellPage() {
       <div className="px-4 pb-8">
         {phase === "start" ? (
           <SurfaceCard data-testid="word-spell-start" className="mt-2 space-y-3 px-4 py-[18px]">
-            <div role="radiogroup" aria-label={t("web.wordSpell.title")} data-testid="word-spell-mode"
-              className="grid grid-cols-2 gap-2">
-              {(["dictation", "meaning"] as const).map((m) => {
-                const off = m === "dictation" && !speaker.available && !speaker.loading;
-                return (
-                  <button key={m} type="button" role="radio" aria-checked={mode === m} aria-disabled={off}
-                    data-testid={`word-spell-mode-${m}`} onClick={() => pick(m)}
-                    className={cn("h-11 rounded-button border-[0.5px] border-hair px-3 text-sub font-semibold", mode === m ? "bg-blue-tint text-blue liquid:bg-wash liquid:text-ink" : "text-ink-2 liquid:text-ink-2", off && "opacity-50")}>
-                    {t(`web.wordSpell.modes.${m}`)}
-                  </button>
-                );
-              })}
-            </div>
-            {!speaker.loading && !speaker.available ? <p className="text-meta text-ink-2">{t("web.wordSpell.dictationOff")}</p> : null}
+            <ModeControl mode={mode} dictationOff={dictationOff} onPick={pick} />
+            {dictationOff ? <p className="text-meta text-ink-2">{t("web.wordSpell.dictationOff")}</p> : null}
             <div role="radiogroup" aria-label={t("web.wordSpell.title")} className="flex gap-2">
               {COUNTS.map((n) => (
                 <button key={n} type="button" role="radio" aria-checked={count === n} onClick={() => setCount(n)}
-                  className={cn("h-11 flex-1 rounded-button border-[0.5px] border-hair text-sub font-semibold", count === n ? "bg-surface-2 text-ink" : "text-ink-2")}>
+                  className={cn("h-11 flex-1 rounded-button border-[0.5px] text-sub font-semibold",
+                    count === n ? "border-blue bg-blue-tint text-blue liquid:bg-wash liquid:text-ink" : "border-hair text-ink-2")}>
                   {t("web.wordSpell.count", { n })}
                 </button>
               ))}
@@ -141,20 +163,29 @@ export function WordbookWordSpellPage() {
 
         {phase === "run" && current ? (
           <div className="mt-2 space-y-3">
-            <p className="text-meta text-ink-2">{index + 1} / {items.length}</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-meta text-ink-2">{index + 1} / {items.length}</p>
+            </div>
+            <ModeControl mode={mode} dictationOff={dictationOff} onPick={pick} />
             <WordSpellQuestion key={`${index}-${shownMode}`} item={current} mode={shownMode} result={result} busy={busy}
               onSubmit={submit} speaker={speaker} />
             {result ? (
-              <button type="button" onClick={next} className={cn(PRIMARY, "h-12 w-full")}>
+              <button type="button" onClick={advance} className={cn(PRIMARY, "h-12 w-full")}>
                 {index + 1 >= items.length ? t("web.wordSpell.finish") : t("web.wordbook.learn.next")}
               </button>
-            ) : null}
+            ) : (
+              <button type="button" data-testid="word-spell-skip" onClick={skip} disabled={busy}
+                className="h-11 w-full rounded-button text-sub font-semibold text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+                {t("web.wordSpell.skip")}
+              </button>
+            )}
           </div>
         ) : null}
 
         {phase === "done" ? (
           <div className="mt-2">
             <SessionSummary stats={stats} onAgain={() => setPhase("start")}
+              note={skipped > 0 ? t("web.wordSpell.skipped", { n: skipped }) : undefined}
               onHome={() => navigate("/wordbook")}
               onListen={speaker.listen} listening={speaker.active} canListen={speaker.available} />
           </div>

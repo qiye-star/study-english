@@ -14,7 +14,9 @@
       "peekAria": "Show the word",
       "peekButton": "Stuck? Tap here to see the word",
       "peekHint": "Stuck? Tap the button below, or the input border, to see the word",
-      "finish": "See results"
+      "finish": "See results",
+      "skip": "Skip",
+      "skipped": "{{n}} skipped"
     }
   }
 }
