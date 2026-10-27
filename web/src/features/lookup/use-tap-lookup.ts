@@ -20,8 +20,9 @@ export interface TapLookupOptions {
 
 /**
  * One tap on a word selects it and calls `onSelect()`, which shows the lookup bar (plan 2026-10-27 one-tap-lookup).
- * Document-level passive pointer listeners, touch and pen only (the desktop mouse keeps native select / double-click).
- * A tap (moved <= 8 px, held <= 450 ms, single finger) on a word of a `[data-lookup-context]` outside interactive elements,
+ * Document-level passive pointer listeners: touch, pen, and the desktop primary mouse button (not the second press of a
+ * double-click, so native double-click selection is untouched; a drag is never a click, so native drag selection is too).
+ * A tap (moved <= 8 px, held <= 450 ms, single finger / one click) on a word of a `[data-lookup-context]` outside interactive elements,
  * `data-lookup-tap="off"` subtrees and pinned routes (library, changelog) is a lookup. It is skipped when the user's own
  * selection was present when the press began (the browser then only clears it); the selection the last tap made does not count.
  * Never preventDefault, never changes user-select / touch-action, never logs. Needs a Router (route checks).
@@ -74,9 +75,11 @@ export function useTapLookup({ enabled, onSelect, doc = document, now = perfNow 
       }
     };
 
-    const touchLike = (e: PointerEvent) => e.pointerType === "touch" || e.pointerType === "pen";
+    // touch and pen, or the primary mouse button when it is not the second click of a double-click (the browser selects the word then)
+    const isPress = (e: PointerEvent) => e.pointerType === "touch" || e.pointerType === "pen"
+      || (e.pointerType === "mouse" && e.button === 0 && e.detail <= 1);
     const onDown = (e: PointerEvent) => {
-      if (!touchLike(e)) return;
+      if (!isPress(e)) return;
       active.add(e.pointerId);
       if (active.size > 1 || e.isPrimary === false) {
         down = null;
@@ -93,7 +96,6 @@ export function useTapLookup({ enabled, onSelect, doc = document, now = perfNow 
       }
     };
     const onUp = (e: PointerEvent) => {
-      if (!touchLike(e)) return;
       active.delete(e.pointerId);
       if (e.pointerId !== pointerId || !down) return;
       const from = down;

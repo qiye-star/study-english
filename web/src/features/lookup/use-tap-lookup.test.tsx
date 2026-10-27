@@ -187,6 +187,84 @@ describe("useTapLookup · where a tap does nothing", () => {
   });
 });
 
+describe("useTapLookup · desktop mouse single click", () => {
+  const mouse = { pointerId: 1, pointerType: "mouse", isPrimary: true, button: 0, clientX: 10, clientY: 10 };
+  const clickWord = (word: string, init: PointerEventInit = {}) => {
+    stubCaret(ctx().firstChild!, at(word));
+    fireEvent.pointerDown(ctx(), { ...mouse, ...init });
+    fireEvent.pointerUp(ctx(), { ...mouse, ...init });
+  };
+
+  it("a single left click on a word selects it and calls onSelect once", () => {
+    const { onSelect } = mount();
+    clickWord("country");
+    expect(selected()).toBe("country");
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second click on another word looks that one up", () => {
+    const { onSelect } = mount();
+    clickWord("country");
+    clickWord("what");
+    expect(selected()).toBe("what");
+    expect(onSelect).toHaveBeenCalledTimes(2);
+  });
+
+  it("the second click of a native double-click (detail 2) is left to the browser", () => {
+    const { onSelect } = mount();
+    clickWord("country");
+    clickWord("country", { detail: 2 });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("a right or middle button press is not a lookup", () => {
+    const { onSelect } = mount();
+    clickWord("country", { button: 2 });
+    clickWord("country", { button: 1 });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(selected()).toBe("");
+  });
+
+  it("a drag (movement over 8 px) keeps the native drag selection and does not look anything up", () => {
+    const { onSelect } = mount();
+    stubCaret(ctx().firstChild!, at("country"));
+    fireEvent.pointerDown(ctx(), mouse);
+    fireEvent.pointerMove(ctx(), { ...mouse, clientX: 60, clientY: 10 });
+    const r = document.createRange();
+    r.selectNodeContents(screen.getByTestId("plain"));
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(r);
+    fireEvent.pointerUp(ctx(), { ...mouse, clientX: 60, clientY: 10 });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(selected()).toBe("plain words here");
+  });
+
+  it("a long press over 450 ms is not a click", () => {
+    const { onSelect } = mount();
+    stubCaret(ctx().firstChild!, at("country"));
+    fireEvent.pointerDown(ctx(), mouse);
+    now = 700;
+    fireEvent.pointerUp(ctx(), mouse);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("a click while the user has their own selection only clears it", () => {
+    const { onSelect } = mount();
+    selectPlain();
+    clickWord("country");
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(selected()).toBe("plain words here"); // the browser's mousedown would clear it; the hook never replaces it
+  });
+
+  it("a click after a lookup on a word inside a button or link is still not a lookup", () => {
+    const { onSelect } = mount();
+    stubCaret(screen.getByTestId("linked").firstChild!, 1);
+    fireEvent.pointerDown(screen.getByTestId("linked"), mouse);
+    fireEvent.pointerUp(screen.getByTestId("linked"), mouse);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
 describe("useTapLookup · what is not a tap", () => {
   it("movement over 8 px (a scroll or drag) is not a tap", () => {
     const { onSelect } = mount();
