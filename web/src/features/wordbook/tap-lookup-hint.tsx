@@ -4,7 +4,7 @@ import { readTapLookupHintSeen, writeTapLookupHintSeen } from "./tap-lookup-pref
 import "./locales";
 
 /**
- * 一次性提示「点一下单词会出现横线,再点一次查词」(替换长按提示):挂载时读本机记忆,没看过就显示并马上记下;
+ * 一次性提示「点一下单词就能查词」(一下即查,plan 2026-10-27 T2):挂载时读本机记忆,没看过就显示并马上记下;
  * 这一道题内一直显示,之后每个新实例读到「看过」就不显示。没有 role=status(复习页的结果行是唯一的 status)。
  */
 export function TapLookupHint() {

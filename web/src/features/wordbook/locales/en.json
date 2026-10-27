@@ -6,7 +6,7 @@
       "after": {
         "title": "Learn more",
         "zh": "Chinese",
-        "tapLookupHint": "Tap a word to underline it, tap again to look it up",
+        "tapLookupHint": "Tap a word to look it up",
         "correct": "Correct answer",
         "yours": "Your answer"
       },

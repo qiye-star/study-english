@@ -8,8 +8,8 @@ beforeEach(() => localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
 
 describe("tap-lookup hint preference (device-local)", () => {
-  it("is unseen until it has been shown once, even for someone who saw the old long-press or double-tap hint", () => {
-    localStorage.setItem(WORDBOOK_PREFS_KEY, JSON.stringify({ doubleTapHintSeen: true, longPressHintSeen: true }));
+  it("is unseen until it has been shown once, even for someone who saw the old hint (one tap now looks up: say it again)", () => {
+    localStorage.setItem(WORDBOOK_PREFS_KEY, JSON.stringify({ tapLookupHintSeen: true, doubleTapHintSeen: true, longPressHintSeen: true }));
     expect(readTapLookupHintSeen()).toBe(false);
     writeTapLookupHintSeen();
     expect(readTapLookupHintSeen()).toBe(true);
@@ -19,7 +19,7 @@ describe("tap-lookup hint preference (device-local)", () => {
     writePrefs({ showLength: true });
     writePhrasesPref(false);
     writeTapLookupHintSeen();
-    expect(JSON.parse(localStorage.getItem(WORDBOOK_PREFS_KEY)!)).toEqual({ showLength: true, phrasesOpen: false, tapLookupHintSeen: true });
+    expect(JSON.parse(localStorage.getItem(WORDBOOK_PREFS_KEY)!)).toEqual({ showLength: true, phrasesOpen: false, tapLookupOnceHintSeen: true });
     writePrefs({ showLength: false });
     expect(readTapLookupHintSeen()).toBe(true);
     expect(readPrefs().showLength).toBe(false);

@@ -6,7 +6,7 @@
       "after": {
         "title": "学习内容",
         "zh": "中文",
-        "tapLookupHint": "点一下单词会出现横线,再点一次查词",
+        "tapLookupHint": "点一下单词就能查词",
         "correct": "正确答案",
         "yours": "你选的"
       },
