@@ -205,14 +205,16 @@ async def put_chunk(session, app, catalog_id: str, n: int, data: bytes) -> dict:
 async def put_subtitles(session, app, catalog_id: str, data: bytes) -> dict:
     """While uploading, or to retry a `failed(no_subtitles)` item (then it is queued again)."""
     row = await get_row(session, catalog_id)
+    tmp = paths.catalog_tmp_dir(data_dir(app), row.id)
+    # plan 2026-10-27 R-S4: a media replacement (flagged) may also bring subtitles; it rebuilds the sentences
+    replacing = row.status == "uploading" and row.seg_count > 0 and (tmp / REPLACE_MARK).is_file()
     if not ((row.status == "uploading" and row.seg_count == 0)
-            or (row.status == "failed" and row.error_kind == "no_subtitles")):
-        raise _err(409, "Subtitles cannot be changed now")  # R-KV8: a media replacement keeps its sentences
+            or (row.status == "failed" and row.error_kind == "no_subtitles") or replacing):
+        raise _err(409, "Subtitles cannot be changed now")  # R-KV8: a plain re-upload of media keeps its sentences
     try:
         cues = subtitles.parse(data)
     except LibraryError:
         raise _err(400, "Invalid subtitle file") from None
-    tmp = paths.catalog_tmp_dir(data_dir(app), row.id)
     tmp.mkdir(parents=True, exist_ok=True)
     (tmp / UPLOADED_SUBS).write_bytes(data)
     if row.status == "failed":

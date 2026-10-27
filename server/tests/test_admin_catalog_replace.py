@@ -118,9 +118,13 @@ async def test_replace_refusals(app, client, monkeypatch):
     assert (await client.post(url, headers=h, json={"filename": "a.mp4", "size": 10})).status_code == 200
     r = await client.put(f"{BASE}/uploads/{cid}/subtitles", headers=h,
                          files={"file": ("t.srt", SRT, "application/x-subrip")})
-    assert (r.status_code, r.json()) == (409, {"error": "Subtitles cannot be changed now"})
+    assert r.status_code == 200, r.text  # plan 2026-10-27 R-S4: a replacement may carry subtitles now
     r = await client.post(url, headers=h, json={"filename": "a.mp4", "size": 10})
     assert (r.status_code, r.json()) == (409, {"error": "Item is not ready"})
+    await client.post(f"{BASE}/{cid}/cancel", headers=h, json={})
+    r = await client.put(f"{BASE}/uploads/{cid}/subtitles", headers=h,
+                         files={"file": ("t.srt", SRT, "application/x-subrip")})
+    assert (r.status_code, r.json()) == (409, {"error": "Subtitles cannot be changed now"})  # ready: refused
 
 
 async def test_canceling_a_replace_upload_goes_back_to_ready_with_the_old_media(app, client, monkeypatch):

@@ -19,6 +19,7 @@ from app.library.errors import Aborted, LibraryError
 from app.library.limits import AI_BATCH_MAX
 from app.library.media import Normalized
 from app.library.pipeline import FetchRequest, PipelineDeps
+from app.library.segment import Sentence
 from app.models import CatalogItem
 from app.storage.base import StorageError
 
@@ -153,12 +154,30 @@ def _same_length(new_ms: int, old_ms: int) -> bool:
     return abs(new_ms - old_ms) <= max(2000, old_ms // 50)  # R-KV7: 2 s or 2 %
 
 
+def _uploaded_sentences(tmp: Path) -> list[Sentence] | None:
+    """R-S4: subtitles that came with a replacement, parsed and split BEFORE anything is probed, so a bad file fails
+    while the old media, sentences and copies are still untouched. None when no subtitles came."""
+    path = tmp / pipeline.UPLOADED_SUBS
+    if not path.is_file():
+        return None
+    try:
+        cues = subtitles.parse(path.read_bytes())
+    except LibraryError:
+        raise LibraryError("bad_subtitle") from None
+    built = segment.build(pipeline.fragments(cues))
+    if not built:
+        raise LibraryError("bad_subtitle")
+    return built
+
+
 async def _replace_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progress: Progress) -> None:
     """R-KV5: new media for an item that keeps its sentences; the catalog row and every copy move in one commit,
-    then the old file goes. A failure before the commit leaves the old media and the copies untouched."""
+    then the old file goes. A failure before the commit leaves the old media and the copies untouched.
+    R-S4: with subtitles the sentences are rebuilt in that same commit (unchanged text keeps its translation)."""
     src = pipeline.input_file(tmp)
     if src is None:
         raise LibraryError("corrupt")
+    new_sentences = _uploaded_sentences(tmp)
     await progress.set("probe", 0)
     info = await deps.tools.probe(src, home=tmp)
     if not info.has_audio:
@@ -207,14 +226,17 @@ async def _replace_stage(deps: PipelineDeps, row: CatalogItem, tmp: Path, progre
             await pipeline.forget_keys(blobs, written)  # only the new keys: copies still read the old file
             raise Aborted()
         fresh = await s.get(CatalogItem, row.id)
+        if new_sentences is not None:
+            await catalog_store.rewrite_segments(s, fresh, new_sentences)
         copies = await catalog_store.sync_copies(s, fresh, deps.clock())
         await s.commit()
     (tmp / REPLACE_MARK).unlink(missing_ok=True)
     if old_rel and old_rel != media_key:  # after the commit only: the old object is no longer referenced
         await pipeline.forget_keys(blobs, [old_rel])
     src.unlink(missing_ok=True)
-    logger.info("library catalog media replaced catalog=%s kind=%s duration_ms=%d bytes=%d copies=%d", row.id,
-                normalized.kind, info.duration_ms, size, copies)
+    sentences = len(new_sentences) if new_sentences is not None else row.seg_count
+    logger.info("library catalog media replaced catalog=%s kind=%s duration_ms=%d bytes=%d copies=%d sentences=%d",
+                row.id, normalized.kind, info.duration_ms, size, copies, sentences)
 
 
 async def _add_asr_seconds(deps: PipelineDeps, catalog_id: str, seconds: int) -> None:
