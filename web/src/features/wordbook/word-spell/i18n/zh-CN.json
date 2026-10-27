@@ -12,7 +12,8 @@
       "start": "开始",
       "dictationHint": "听发音,写出你听到的单词",
       "peekAria": "显示单词",
-      "peekHint": "想不起来?点输入框的边框看单词",
+      "peekButton": "想不起来?点这里看单词",
+      "peekHint": "想不起来?点下面的按钮,或点输入框的边框看单词",
       "finish": "看结果"
     }
   }

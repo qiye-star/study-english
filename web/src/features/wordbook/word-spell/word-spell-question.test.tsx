@@ -52,6 +52,17 @@ describe("WordSpellQuestion (看中文拼英文)", () => {
     expect(fireEvent.mouseDown(frame())).toBe(false);
   });
 
+  it("a touch on the input never peeks; the big visible button does (mobile)", () => {
+    setup();
+    fireEvent.pointerDown(input(), { pointerType: "touch" });
+    fireEvent.touchStart(input());
+    expect(screen.queryByTestId("word-spell-peek")).toBeNull();
+    const btn = screen.getByTestId("word-spell-peek-btn");
+    expect(btn.className).toContain("h-11");
+    fireEvent.click(btn);
+    expect(screen.getByTestId("word-spell-peek")).toHaveTextContent("talk");
+  });
+
   it("the visible eye button shows the word too", () => {
     setup();
     fireEvent.click(screen.getByRole("button", { name: "显示单词" }));

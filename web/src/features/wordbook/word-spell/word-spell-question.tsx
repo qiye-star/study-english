@@ -110,7 +110,7 @@ export function WordSpellQuestion({ item, mode, result, busy, onSubmit, speaker 
       ) : null}
 
       <div data-testid="word-spell-frame" onPointerDown={onFramePointerDown} onMouseDown={onFrameMouseDown}
-        className={cn("mt-3 flex min-h-tap items-center gap-2 rounded-button border border-dashed border-hair p-2.5", peekable && "cursor-pointer")}>
+        className={cn("mt-3 flex min-h-tap items-center gap-2 rounded-button border border-dashed border-hair px-3 py-3", peekable && "cursor-pointer")}>
         <input ref={inputRef} type="text" value={value} readOnly={result !== null} onChange={(e) => onChange(e.target.value)}
           onCompositionStart={() => setShowing(false)} onKeyDown={onKeyDown}
           aria-label={t(dictation ? "web.wordbook.quiz.dictationPlaceholder" : "web.wordbook.quiz.spellInput")}
@@ -131,6 +131,12 @@ export function WordSpellQuestion({ item, mode, result, busy, onSubmit, speaker 
         ) : null}
       </div>
 
+      {peekable ? (
+        <button type="button" data-testid="word-spell-peek-btn" onClick={peek}
+          className="mt-2 flex h-11 w-full items-center justify-center rounded-button text-sub font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {t("web.wordSpell.peekButton")}
+        </button>
+      ) : null}
       {hintLine && !dictation && !result ? <p data-testid="word-spell-peek-hint" className="mt-2 text-meta text-ink-2">{t("web.wordSpell.peekHint")}</p> : null}
 
       {!result ? (

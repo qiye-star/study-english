@@ -12,7 +12,8 @@
       "start": "Start",
       "dictationHint": "Listen and write the word you hear",
       "peekAria": "Show the word",
-      "peekHint": "Stuck? Tap the input border to see the word",
+      "peekButton": "Stuck? Tap here to see the word",
+      "peekHint": "Stuck? Tap the button below, or the input border, to see the word",
       "finish": "See results"
     }
   }
