@@ -333,6 +333,13 @@ _ALL: tuple[SettingSpec, ...] = (
     _s("wordbook_ai_model", "wordbook", "str", "AI 讲解模型", help_zh="留空 = 默认模型"),
     _s("wordbook_ai_global_daily", "wordbook", "int", "全站每日 AI 讲解次数", help_zh="只计未命中缓存的调用", danger=_COST),
     _s("wordbook_ai_daily_per_user", "wordbook", "int", "每人每日 AI 讲解次数", help_zh="可按用户覆盖"),
+    # 简单英英释义(计划 2026-10-27 R-S8)
+    _s("wordbook_simple_defs_enabled", "wordbook", "bool", "简单英英释义(读缓存)",
+       help_zh="关 = 释义与以前完全一样;开 = 显示已改写的简单英语(缓存为空时仍是原文)", danger=_COST),
+    _s("wordbook_simple_defs_generate", "wordbook", "bool", "简单英英释义·允许模型改写",
+       help_zh="关 = 只读已有缓存,不调用模型", danger=_COST),
+    _s("wordbook_simple_defs_daily", "wordbook", "int", "简单英英释义·每日改写次数", min=0, max=5000,
+       help_zh="0 = 不限制;每次调用一批最多 20 条", danger=_COST),
     # wordbook v2(设计文档 2026-10-11-wordbook-recall §7)
     _s("wordbook_spot_check_pct", "wordbook", "int", "「认识」抽查比例(%)", min=0, max=100,
        help_zh="学新词与快速回忆里按「认识」的词按此比例抽查一道选释义;0 = 不抽查(含太快必抽)"),

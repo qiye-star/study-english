@@ -140,7 +140,7 @@ def card_out(card: WordCard, ds: DictionaryStore) -> dict:
            "senses": [{"pos": s.pos, "text": s.text} for s in card.senses],
            "phrases": [{"en": en, "zh": zh} for en, zh in card.phrases],
            "examples": [{"id": e.id, "en": e.en, "zh": e.zh} for e in card.examples]}
-    if defs := ds.definitions.defs_for(card.key):
+    if defs := ds.english_defs(card.key):
         out["defs_en"] = defs
     return out
 
@@ -310,7 +310,7 @@ async def _choice_extras(ds: DictionaryStore, user_id: int, p: AnswerInput, card
     out["option_info"] = [
         {"option": option, "word": cards[k].word,
          "defs_zh": [{"pos": s.pos, "text": s.text} for s in cards[k].senses[:MAX_OPTION_DEFS_ZH]],
-         "defs_en": ds.definitions.defs_for(k)}
+         "defs_en": ds.english_defs(k)}
         for option, k in pairs]
     return out
 

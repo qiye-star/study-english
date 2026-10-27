@@ -11,7 +11,8 @@
 - `learned.py` – 已学词熟练度分档(存储盒 0–5)、易错判定、游标、本地日窗口(纯;只导入 `plan`)
 - `recall.py` – v2 self-rating rules (spec `2026-10-11-wordbook-recall-design.md` §5): effective rating (peek → fuzzy,
   two fuzzy in a row → unknown), spot-check hash, new-word boxes, same-day quiz / re-rate targets (pure)
-- `simple_defs.py` – 简单英英释义(计划 2026-10-27 S 车道):难词判定 `hard_words` 与易词表 `load_easy`(纯;S1)
+- `simple_defs.py` – 简单英英释义(计划 2026-10-27 S 车道):难词判定 `hard_words` / 易词表 `load_easy` (纯);`SimpleDefs` 进程内缓存镜像与读路径 `apply`(同步、零上游、无日志;开关关 = `DictionaryStore.english_defs` 直接返回 `defs_for`,逐字节不变);`simple_of(app)` 唯一入口
+- `simple_defs_worker.py` – 简单英英释义的后台部分:启动时 `warm` 把缓存表读进内存(S4);改写循环在 S5 加入
 - `forms.py` – 词形 → 原形小表加载器(forms.txt,懒加载、文件变了自动重读)
 - `lookup.py` – 选词词典(DictionaryLookup:规范化 → 七本书直接命中 → 词形 → 短语表;不记录查询)
 - `examples.py` – 复习例句端口 `ExampleProvider`(L4 R13):`DictionaryExampleProvider`(= `quiz.cloze_example`,逐字不变)、`LibraryExampleProvider`(用户自己的 ready 库句子,经 `segment_lemma` 查,不消耗 `question_rng`)、`provider_for(settings)`(两个开关都开才用库)

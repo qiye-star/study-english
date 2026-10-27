@@ -236,6 +236,11 @@ class Settings(BaseSettings):
     wordbook_ai_model: str = ""
     wordbook_ai_global_daily: int = Field(200, ge=0, le=100000)
     wordbook_ai_daily_per_user: int = Field(20, ge=0, le=1000)
+    # 简单英英释义(计划 2026-10-27 S 车道 R-S8):读缓存总开关(关 = 输出与改动前逐字节相同);生成开关(关 = 只读缓存);
+    # 每日改写调用上限,0 = 不限制(用户要求无上限;仍计入用量)
+    wordbook_simple_defs_enabled: bool = False
+    wordbook_simple_defs_generate: bool = True
+    wordbook_simple_defs_daily: int = Field(0, ge=0, le=5000)
     # 背单词 v2 · 三档自评与快速回忆(设计文档 2026-10-11-wordbook-recall §7)
     wordbook_spot_check_pct: int = Field(33, ge=0, le=100)
     wordbook_recall_enabled: bool = True
@@ -540,6 +545,10 @@ class Settings(BaseSettings):
     @property
     def resolved_wordbook_ai_model(self) -> str:
         return self.wordbook_ai_model.strip() or self.default_llm_model
+
+    @property
+    def wordbook_simple_defs_generate_available(self) -> bool:
+        return self.wordbook_simple_defs_enabled and self.wordbook_simple_defs_generate and bool(self.upstream_llm_base_url)
 
     @property
     def agents_available(self) -> bool:
