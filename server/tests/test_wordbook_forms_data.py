@@ -45,7 +45,7 @@ def test_the_manifest_lists_the_file_and_the_checks_pass(manifest):
     assert wd.check(DATA) == []
     entry = next(f for f in manifest["files"] if f["file"] == "forms.txt")
     assert entry["sha256"] == wd.sha256_of(DATA / "forms.txt") and entry["bytes"] == (DATA / "forms.txt").stat().st_size
-    assert entry["entries"] == manifest["forms"]["forms"] and manifest["files"][-1] is entry
+    assert entry["entries"] == manifest["forms"]["forms"] and entry in manifest["files"][-2:]  # easy-words.txt may follow it
     assert manifest["forms"]["version"] == wd.FORMS_VERSION and manifest["forms"]["kinds"] == list(wd.FORM_KINDS)
     assert manifest["forms"]["skips_book_headword_forms"] is True
 

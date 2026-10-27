@@ -13,6 +13,7 @@ from pathlib import Path
 
 from app.wordbook.books import book_by_id
 from app.wordbook.definitions import Definitions, default_path
+from app.wordbook.simple_defs import simple_of
 from app.wordbook.entry import WordCard, clean_sentence, headword_key, merge_rows, pos_mask_of, pos_parts
 from app.wordbook.option_memo import OptionMemo
 from app.wordbook.textnorm import find_form
@@ -106,6 +107,7 @@ class DictionaryStore:
     def __init__(self, data_dir: Path, *, cache_size: int = 1024):
         self.data_dir = Path(data_dir)
         self.definitions = Definitions(default_path(self.data_dir))  # English definitions (spec 2026-10-12 §3)
+        self.simple = None  # SimpleDefs (计划 2026-10-27 S4); set by dictionary(app); None = no cache
         self.option_memo = OptionMemo()  # 出题时记下「选项 → 词」,答题后回填 option_info(计划 2026-10-13-review-after-answer R-A1)
         self._cache_size = cache_size
         self._indexes: dict[str, BookIndex] = {}
@@ -114,6 +116,14 @@ class DictionaryStore:
         self.hidden: frozenset[str] = frozenset()
         self.hidden_loaded = False
         self._generation = 0  # reload() bumps it: a build or read in flight across a reload is not kept (review m6)
+
+    def english_defs(self, key: str) -> list[dict]:
+        """`defs_for` plus the cached simple English (计划 R-S4). Switch off (or no cache) = exactly `defs_for`."""
+        base = self.definitions.defs_for(key)
+        simple = self.simple
+        if not base or simple is None or not simple.enabled():
+            return base
+        return simple.apply(key, base)
 
     def path_for(self, book_id: str) -> Path:
         spec = book_by_id(book_id)
@@ -218,4 +228,5 @@ def dictionary(app) -> DictionaryStore:
     store = getattr(app.state, "wordbook_dict", None)
     if store is None or store.data_dir != want:
         store = app.state.wordbook_dict = DictionaryStore(want)
+    store.simple = simple_of(app)
     return store

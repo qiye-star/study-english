@@ -159,9 +159,7 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     assert shape(actual) == shape(expected)
     # 录制的样例里不能有令牌、密钥或本机路径
     raw = FIXTURE.read_text(encoding="utf-8")
-    # POSIX tmp_path.anchor is "/", which occurs in ordinary text such as "n/v"; only check a real path prefix.
-    anchor_leak = len(str(tmp_path)) > len(tmp_path.anchor) + 3 and str(tmp_path) in raw
-    assert "access_token" not in raw and "secret" not in raw and not anchor_leak
+    assert "access_token" not in raw and "secret" not in raw and str(tmp_path) not in raw.replace("\\\\", "\\")
     # 列表非空(shape 只看第一个元素)、契约里没有以词为键的映射
     for path in (("learn_batch", "cards"), ("learn_batch", "quiz"), ("learn_batch", "drill"), ("review_batch", "questions"),
                  ("review_batch", "cards"), ("spell_sets", "sets"), ("spell_submit", "words"), ("books", "books"),

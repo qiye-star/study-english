@@ -69,6 +69,12 @@
       "bytes": 361197,
       "sha256": "a44e4cc42fb7a3563ccb844601375280debf93f29c80edb875f6e917460097b1",
       "entries": 21074
+    },
+    {
+      "file": "easy-words.txt",
+      "bytes": 88060,
+      "sha256": "841b7748d9649e90ba12fa4c7c55e2e090c3543b69f90eaabe89911351ce90d6",
+      "entries": 10841
     }
   ],
   "stats": {
@@ -109,5 +115,15 @@
     "tiebreak": "commonest lemma by ECDICT frq, then alphabetical",
     "forms": 21074,
     "lemmas_covered": 11537
+  },
+  "easy_words": {
+    "books": [
+      "junior",
+      "senior"
+    ],
+    "function_words": "function-words.jsonl",
+    "forms": "forms.txt (lemmas in books)",
+    "words": 10841,
+    "version": 1
   }
 }

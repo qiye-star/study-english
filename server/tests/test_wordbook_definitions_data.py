@@ -153,3 +153,14 @@ def test_no_secret_shaped_text_in_the_data_dir():
     for path in DATA.iterdir():
         if path.suffix in {".jsonl", ".txt", ".json", ".md"} or path.name.startswith("LICENSE"):
             assert not pattern.search(path.read_text(encoding="utf-8")), path.name
+
+
+def test_easy_words_file_is_sorted_unique_lf_and_matches_the_builder():
+    """easy-words.txt (plan 2026-10-27 S1.5): sorted, unique, LF, lower-case words; the committed bytes are what
+    the builder produces from the repository inputs."""
+    raw = (DATA / "easy-words.txt").read_bytes()
+    assert raw.endswith(b"\n") and b"\r" not in raw
+    words = raw.decode("utf-8").split("\n")[:-1]
+    assert words == sorted(set(words))
+    assert all(re.fullmatch(r"[a-z]+", w) for w in words)
+    assert wd.easy_words(BOOKS, DATA) == words

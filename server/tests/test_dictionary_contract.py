@@ -38,6 +38,4 @@ async def test_dictionary_payloads_match_the_web_contract(app, client, tmp_path)
     assert expected["phrase"]["defs_en"] == [] and "phrases" not in expected["phrase"]
     assert expected["miss"] == {"hit": False}
     raw = FIXTURE.read_text(encoding="utf-8")
-    # POSIX tmp_path.anchor is "/", which occurs in ordinary text such as "n/v"; only check a real path prefix.
-    anchor_leak = len(str(tmp_path)) > len(tmp_path.anchor) + 3 and str(tmp_path) in raw
-    assert "access_token" not in raw and "secret" not in raw and not anchor_leak
+    assert "access_token" not in raw and "secret" not in raw and str(tmp_path) not in raw.replace("\\\\", "\\")

@@ -74,6 +74,10 @@ class Forms:
     def __len__(self) -> int:
         return len(self._ensure())
 
+    def table(self) -> dict[str, str]:
+        """整张表(只读,供缓存在启动时复制一份;热路径不要每个词都调用,那样每次都 stat 文件)。"""
+        return self._ensure()
+
     def lemma_of(self, form: str) -> str | None:
         """键是规范化小写词;没有 = None。"""
         return self._ensure().get(form)

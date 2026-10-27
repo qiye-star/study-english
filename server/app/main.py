@@ -41,6 +41,8 @@ from app.routers import (
     admin_users, admin_web, admin_wordbook, activation, ai_audio, ai_chat, assessments, captcha, changelog, config_api, conversations, dictionary, grammar, grammar_prompt, health, invites_me, library, library_catalog, library_import, links, dubbing, admin_dubbing, practice_items, rank, realtime, rooms, rooms_agents, rooms_summary, rooms_voice, sessions, speech, stats, stubs, vocabulary, web, wordbook,
 )
 
+from app.wordbook import simple_defs_worker
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
@@ -57,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app_: FastAPI):
         await reload_from_db(app_, startup=True)  # DB overrides on top of env (admin v2 §3.6)
+        await simple_defs_worker.warm(app_)  # simple English definitions: cached rows into memory (plan 2026-10-27 S4)
         await run_startup_hooks(app_)
         await rooms.rooms_startup(app_)
         tasks = app_.state.background_tasks
@@ -66,6 +69,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
         tasks["activation_purge"] = asyncio.create_task(activation_purge.daily_loop(app_))  # plan L4 R10 (off by switch)
+        tasks["simple_defs"] = asyncio.create_task(simple_defs_worker.loop(app_))  # plan 2026-10-27 S5
         tasks["library"] = asyncio.create_task(app_.state.library.loop())  # library queue (video-import §6.1)
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): await app_.state.catalog.recover() goes on the next line ---
         await app_.state.catalog.recover()  # requeue + run interrupted catalog imports

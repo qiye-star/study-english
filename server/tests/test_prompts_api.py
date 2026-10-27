@@ -63,7 +63,7 @@ async def test_overview_detail_and_permissions(app, client):
     viewer = await login_as(app, client, "viewer")
     items = (await client.get("/api/admin/prompts")).json()
     assert [i["key"] for i in items] == ["grammar.rules", "rooms.assist", "rooms.voice_translate",
-                                         "rooms.summary", "wordbook.explain", "library.translate",
+                                         "rooms.summary", "wordbook.explain", "wordbook.simplify_defs", "library.translate",
                                          "library.analyze", "library.roles", "chat.daily_greeting", "config.chat_agent_templates"]
     assist = (await client.get("/api/admin/prompts/rooms.assist")).json()["spec"]
     assert assist["optional"] == ["scenario"] and "scenario" in assist["sample_fields"]

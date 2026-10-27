@@ -11,6 +11,10 @@
 - `learned.py` – 已学词熟练度分档(存储盒 0–5)、易错判定、游标、本地日窗口(纯;只导入 `plan`)
 - `recall.py` – v2 self-rating rules (spec `2026-10-11-wordbook-recall-design.md` §5): effective rating (peek → fuzzy,
   two fuzzy in a row → unknown), spot-check hash, new-word boxes, same-day quiz / re-rate targets (pure)
+- `simple_defs.py` – 简单英英释义(计划 2026-10-27 S 车道):难词判定 `hard_words` / 易词表 `load_easy` (纯);`SimpleDefs` 进程内缓存镜像与读路径 `apply`(同步、零上游、无日志;开关关 = `DictionaryStore.english_defs` 直接返回 `defs_for`,逐字节不变);`simple_of(app)` 唯一入口
+- `simple_sources.py` – 第一层来源接口 `DefinitionSource` 与读本地文件的 `FileSource`(Simple English Wiktionary 的数据文件未分发时为空);Learner's 不接入
+- `simple_defs_worker.py` – 简单英英释义的后台改写:`run_once` 先问来源(不占额度),其余按批调用一次模型、校验(`check_rewrite`)、写库并更新内存;`loop` 是 lifespan 任务 `simple_defs`;`warm` 启动时读缓存表。日志只记计数与异常种类
+- `simplify_fill.py` – 运维命令(`python -m app.wordbook.simplify_fill`:预填一本书 / 干跑 / `--purge`);不 import `app.main`,自建最小 state
 - `forms.py` – 词形 → 原形小表加载器(forms.txt,懒加载、文件变了自动重读)
 - `lookup.py` – 选词词典(DictionaryLookup:规范化 → 七本书直接命中 → 词形 → 短语表;不记录查询)
 - `examples.py` – 复习例句端口 `ExampleProvider`(L4 R13):`DictionaryExampleProvider`(= `quiz.cloze_example`,逐字不变)、`LibraryExampleProvider`(用户自己的 ready 库句子,经 `segment_lemma` 查,不消耗 `question_rng`)、`provider_for(settings)`(两个开关都开才用库)
@@ -68,6 +72,7 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
 - `free_start` 用系统熵 `random.Random()`(可注入),不用选书 `seed`;空池不扣 `FREE_STARTS_DAILY_MAX`(200)。
 - 单词拼写出题 `POST /word-spell/start`(`service.word_spell_start`,计划 2026-10-27 R-W3):词池同 `spell_sets`(到期 + 今日新学 + 盒 ≤ 3),只取本书来源(`source == wordbook_source(book)`)且 `free_spellable` 的词;不扣任何计数、不写 SRS。作答走 `/answers` 的 `mode:"free"`(`qtype` 为 `dictation` / `spell`),不改盒、不进段位。
 - 契约样例新增 `learned_summary / learned_list / learned_card / free_start / answer_free`。
+- 简单英英释义(计划 2026-10-27):读路径 `DictionaryStore.english_defs` 同步、零上游、无日志;开关关时必须与 `defs_for` 逐字节相同(`tests/test_wordbook_simple_defs_read.py`)。生成只在 `simple_defs_worker` 里、只经 `llm.complete`(`metering.feature_scope("wordbook")`),额度 `usage` 的 `wordbook_simplify`;缓存键 = (词, 词性, 原文哈希)。`simple_defs.py` 与 `simple_sources.py` 不许有日志调用(`test_the_read_module_has_no_logging`)。
 - 选词词典 `POST /api/dictionary/lookup` 的词只在 POST 体;`lookup.py` 里不许有 logging 调用,`forms.py` 只记行数、不记词(`test_dictionary_lookup.py::test_the_module_is_not_a_logging_site`);不受 `WORDBOOK_ENABLED` 控制;`DictionaryLookup` 随 `dictionary(app)` 的 store 更换(`lookup_service`)。
 - FSRS 灰度(L3):FSRS 模式下盒子由稳定度推导(`scheduling.derive_box`);`plan.py`、`quiz.py`、`learned.py` 按盒子选题型与分档的规则不要改成读 stability。
   `reviewed_at` 只在调度真的改了卡时写(`_write_srs` 成功、`applied` 为真),自由练习、未到期答对与重复提交都是 NULL。

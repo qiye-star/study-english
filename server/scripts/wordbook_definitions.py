@@ -6,6 +6,7 @@ Offline operator tool; `app/` never imports it and nothing here runs at request 
   uv run python scripts/wordbook_definitions.py build   --sources D:\\tmp-ecdict
   uv run python scripts/wordbook_definitions.py check
   uv run python scripts/wordbook_definitions.py forms   --sources D:\\tmp-ecdict   # forms.txt: inflected form -> lemma
+  uv run python scripts/wordbook_definitions.py easy-words                          # easy-words.txt (repo inputs only)
   uv run python scripts/wordbook_definitions.py llm-fill            # needs the LLM upstream (dev machine only)
 `--sources` defaults to the env var WORDBOOK_DEFS_SOURCES. Output is deterministic: the same inputs give
 byte-identical files. Never prints keys, prompts or replies; only counts and words from the public word lists.
@@ -51,7 +52,9 @@ ALL_POS = OPEN_POS + CLOSED_POS
 SRC_VALUES = ("oewn", "hand", "llm")
 CATEGORIES = ("function", "proper", "abbr", "compound", "pos_mismatch", "other")
 FILES = {"definitions": "definitions.jsonl", "hand": "function-words.jsonl", "llm": "definitions-llm.jsonl",
-         "missing": "missing.txt", "manifest": "SOURCE.json", "forms": "forms.txt"}
+         "missing": "missing.txt", "manifest": "SOURCE.json", "forms": "forms.txt", "easy": "easy-words.txt"}
+EASY_BOOKS = ("junior", "senior")  # the easy list is built from the junior and senior headwords only (plan R-S2)
+EASY_WORD_RE = re.compile(r"^[a-z]+$")
 
 INPUTS = {
     "oewn": {"name": "Open English WordNet", "version": "2025", "license": "CC BY 4.0",
@@ -719,6 +722,9 @@ def build(sources: Path | None, data_dir: Path = DATA_DIR, books_dir: Path = BOO
     if "forms" in previous and (data_dir / FILES["forms"]).is_file():  # the `forms` command owns this part: carry it over
         manifest["files"].append(_file_entry(data_dir / FILES["forms"], entries=_line_count(data_dir / FILES["forms"])))
         manifest["forms"] = previous["forms"]
+    if "easy_words" in previous and (data_dir / FILES["easy"]).is_file():  # likewise the `easy-words` command's part
+        manifest["files"].append(_file_entry(data_dir / FILES["easy"], entries=_line_count(data_dir / FILES["easy"])))
+        manifest["easy_words"] = previous["easy_words"]
     write_bytes(manifest_path, (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     return result
 
@@ -746,6 +752,68 @@ def build_forms_file(sources: Path | None, data_dir: Path = DATA_DIR, books_dir:
     manifest["forms"] = {**forms_rules(), **stats}
     write_bytes(manifest_path, (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     return stats
+
+
+# ---------------------------------------------------------------- easy-words.txt (simple-English word list, R-S2)
+
+def easy_words(books_dir: Path = BOOKS_DIR, data_dir: Path = DATA_DIR) -> list[str]:
+    """Junior + senior headwords (single words), the function words, and the forms of those lemmas in forms.txt.
+    Sorted and unique; only repository inputs, so the same inputs give the same bytes."""
+    heads = set(collect_wanted(books_dir, EASY_BOOKS)[0])
+    out = {w for w in heads if EASY_WORD_RE.match(w)}
+    fw = data_dir / "function-words.jsonl"
+    if fw.is_file():
+        for line in fw.read_bytes().splitlines():
+            if line.strip():
+                word = json.loads(line).get("word", "")
+                if EASY_WORD_RE.match(word):
+                    out.add(word)
+    forms = data_dir / FILES["forms"]
+    if forms.is_file():
+        for raw in forms.read_bytes().decode("utf-8").splitlines():
+            form, tab, lemma = raw.partition("\t")
+            if tab and lemma in heads and EASY_WORD_RE.match(form):
+                out.add(form)
+    return sorted(out)
+
+
+def render_easy(words: list[str]) -> bytes:
+    return "".join(f"{w}\n" for w in words).encode("utf-8")
+
+
+def build_easy_file(books_dir: Path = BOOKS_DIR, data_dir: Path = DATA_DIR) -> dict:
+    """Write easy-words.txt and its SOURCE.json entry (the `easy-words` command owns this part). Deterministic."""
+    words = easy_words(books_dir, data_dir)
+    path = data_dir / FILES["easy"]
+    write_bytes(path, render_easy(words))
+    manifest_path = data_dir / FILES["manifest"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"] = [f for f in manifest["files"] if f["file"] != FILES["easy"]] + [_file_entry(path, entries=len(words))]
+    manifest["easy_words"] = {"books": list(EASY_BOOKS), "function_words": "function-words.jsonl",
+                              "forms": "forms.txt (lemmas in books)", "words": len(words), "version": 1}
+    write_bytes(manifest_path, (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    return {"words": len(words)}
+
+
+def hard_summary(data_dir: Path = DATA_DIR) -> tuple[int, int]:
+    """(hard, total) over the definitions the runtime shows (select_defs per word). Counts only, never words."""
+    from app.wordbook.definitions import select_defs
+    from app.wordbook.forms import Forms
+    from app.wordbook.simple_defs import hard_words, load_easy
+
+    easy = load_easy(data_dir / FILES["easy"])
+    forms = Forms(data_dir / FILES["forms"])
+    hard = total = 0
+    with (data_dir / FILES["definitions"]).open("rb") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            for pos, text in select_defs([(d["pos"], d["text"]) for d in row["defs"]]):
+                total += 1
+                if hard_words(text, row["word"], easy=easy, lemma_of=forms.lemma_of):
+                    hard += 1
+    return hard, total
 
 
 def check(data_dir: Path = DATA_DIR) -> list[str]:
@@ -945,7 +1013,7 @@ def _sources_arg(value: str | None) -> Path | None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=("verify", "build", "check", "forms", "llm-fill"))
+    parser.add_argument("command", choices=("verify", "build", "check", "forms", "easy-words", "llm-fill"))
     parser.add_argument("--sources", help="dir holding the two input zips (default: env WORDBOOK_DEFS_SOURCES)")
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--books-dir", type=Path, default=BOOKS_DIR)
@@ -970,6 +1038,9 @@ def main(argv: list[str] | None = None) -> int:
         stats = build(sources, args.data_dir, args.books_dir, built=args.built, work=args.work).stats
         print(json.dumps(stats, indent=2))
         return 0
+    elif args.command == "easy-words":
+        print(json.dumps(build_easy_file(args.books_dir, args.data_dir), indent=2))
+        return 0
     elif args.command == "forms":
         if sources is None:
             raise SystemExit("pass --sources or set WORDBOOK_DEFS_SOURCES")
@@ -980,6 +1051,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     else:
         return _llm_fill_cli(args)
+    if args.command == "check" and (args.data_dir / FILES["easy"]).is_file():
+        hard, total = hard_summary(args.data_dir)  # counts only: no word or gloss is printed
+        print(f"hard definitions: {hard} of {total}")
     print("\n".join(problems) if problems else "ok")
     return 1 if problems else 0
 

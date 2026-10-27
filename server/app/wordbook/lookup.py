@@ -96,7 +96,7 @@ class DictionaryLookup:
 
     def _entry(self, query: str, card: WordCard) -> dict | None:
         zh = [{"pos": s.pos, "text": s.text} for s in card.senses[:MAX_ZH]]
-        en = self.store.definitions.defs_for(card.key)
+        en = self.store.english_defs(card.key)
         if not zh and not en:
             return None
         inflected = card.key != query
