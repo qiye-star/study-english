@@ -21,6 +21,7 @@ yarn workspace admin build          # 产物 admin/dist,Docker 镜像里由 serv
 - `src/app.tsx`:路由;`RequireAuth` 首次进入调用 `GET /api/admin/session`。
 - `src/api/`:`client.ts`(Cookie 会话 + `X-Admin-CSRF`,403 `Step-up required` 时弹二次验证并重放原请求;`ApiError(status, message, fields, details)`)、
   `session.ts`(内存里的会话与 CSRF,不进 sessionStorage)、`endpoints.ts`(登录与 v1 只读接口)。
+- `src/lib/`:通用纯逻辑(`zip-reader.ts` 中央目录读取、`md5.ts` 增量 MD5、`test-zip.ts` 仅测试用);不 import 任何 feature。
 - `src/components/`:外壳 `layout.tsx`(侧栏 `NAV`,每项声明最低角色;`< 1024px` 整页提示「请使用桌面浏览器访问管理后台」)、
   `Dialog` / `ConfirmDialog`(理由、输入确认)/ 二次验证 / `DiffTable` / `SecretField` / `ApplyBadge` / `RoleGate` / `DataTable` / `BarChart`。
 - `src/features/<area>/`:按功能分目录,每个目录有 `index.ts`(对外出口,`app.tsx` 只从这里导入)、`api.ts`(该功能的接口与
@@ -36,7 +37,7 @@ yarn workspace admin build          # 产物 admin/dist,Docker 镜像里由 serv
 | `rooms` | 房间列表与详情(时间线、移出、隐藏消息、关闭 AI)、举报 | viewer / operator |
 | `usage` | 用量与估算费用、错误分布、上游健康(超级管理员可逐行测试连接) | viewer |
 | `ops` | 系统状态、脱敏日志、公告与维护、数据与备份 | viewer / operator / superadmin |
-| `catalog` | 精选库:按链接 / 上传导入内置素材、审核与发布、逐句编辑、删除(退役)/ 强制删除 | viewer / operator / superadmin |
+| `catalog` | 精选库:按链接 / 上传 / 导入包(zip,见 `scripts/CLAUDE.md`)导入内置素材、审核与发布、逐句编辑、删除(退役)/ 强制删除 | viewer / operator / superadmin |
 | `prompts` | 提示词版本(语法规则、房间助手、语音翻译、小结、情景模板):草稿、检查清单、对比、试运行、发布 | viewer |
 
 ## 约定
