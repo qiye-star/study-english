@@ -739,6 +739,29 @@ class WordbookExplanation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class WordbookSimpleDef(Base):
+    """简单英英释义的全站缓存(计划 2026-10-27 R-S3):一条释义(词 + 词性 + 原文哈希)一行,不含用户数据。
+    `status`: ok = 改写后的文本;skip = 不合格,永久用原文;failed = 上游失败,按 attempts / retry_after 重试。"""
+    __tablename__ = "wordbook_simple_defs"
+    __table_args__ = (
+        UniqueConstraint("word", "pos", "src_hash", name="uq_wordbook_simple_defs_word_pos_src"),
+        Index("ix_wordbook_simple_defs_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    word: Mapped[str] = mapped_column(String(100))
+    pos: Mapped[str] = mapped_column(String(8))
+    src_hash: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(8))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    retry_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    model: Mapped[str] = mapped_column(String(100))
+    prompt_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class WordbookReport(Base):
     __tablename__ = "wordbook_reports"
     __table_args__ = (Index("ix_wordbook_reports_status_created_at", "status", "created_at"),)

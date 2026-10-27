@@ -23,7 +23,7 @@ def _indexes(con, table: str) -> dict[str, bool]:
 def test_head_is_0025_and_0022_follows_0021(tmp_path, monkeypatch):
     cfg, _db = _config(tmp_path, monkeypatch)
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["0031"]
+    assert script.get_heads() == ["0032"]
     assert script.get_revision("0022").down_revision == "0021"
 
 
