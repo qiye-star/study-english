@@ -16,6 +16,7 @@
       "peekHint": "Stuck? Tap the button below, or the input border, to see the word",
       "finish": "See results",
       "skip": "Skip",
+      "peeked": "Looked at the word",
       "skipped": "{{n}} skipped"
     }
   }

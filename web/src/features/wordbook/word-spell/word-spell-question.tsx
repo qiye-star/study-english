@@ -94,11 +94,14 @@ export function WordSpellQuestion({ item, mode, result, busy, onSubmit, speaker 
           <p className="flex-1 text-sub text-ink-2">{t("web.wordSpell.dictationHint")}</p>
           <ListenButton id={playId} text={word} accent="us" label={t("web.wordbook.word.listen.word")} onListen={replay}
             listening={speaker.active} canListen={speaker.available}
-            className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
+            className="h-20 w-20 flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
         </div>
       ) : (
         <div className="flex items-start gap-2">
-          <p className="min-w-0 flex-1 text-title font-medium leading-dialogue">{item.question?.prompt.meaning}</p>
+          <div className="min-w-0 flex-1">
+            <p data-testid="word-spell-meaning" className="text-headline font-semibold leading-dialogue">{item.question?.prompt.meaning}</p>
+            {item.question?.length ? <p className="mt-1 text-meta text-ink-2">{t("web.wordbook.quiz.length", { n: item.question.length })}</p> : null}
+          </div>
           <ListenButton id={playId} text={word} accent="us" label={t("web.wordbook.word.listen.word")} onListen={replay}
             listening={speaker.active} canListen={speaker.available}
             className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
@@ -156,6 +159,15 @@ export function WordSpellQuestion({ item, mode, result, busy, onSubmit, speaker 
               {t("web.wordbook.quiz.expected")} <b lang="en" {...lookupContext} className="text-body font-semibold text-ink">{result.expected}</b>
             </p>
           ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {result.outcome !== "correct" ? (
+              <button type="button" data-testid="word-spell-replay" onClick={replay}
+                className="inline-flex h-11 items-center gap-1.5 rounded-button border-[0.5px] border-hair px-3 text-sub font-semibold text-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                {t("web.wordbook.word.listen.word")}
+              </button>
+            ) : null}
+            {peeked ? <span data-testid="word-spell-peeked" className="text-meta text-ink-2">{t("web.wordSpell.peeked")}</span> : null}
+          </div>
         </div>
       )}
     </SurfaceCard>
