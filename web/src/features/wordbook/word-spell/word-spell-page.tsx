@@ -118,7 +118,7 @@ export function WordbookWordSpellPage() {
                 return (
                   <button key={m} type="button" role="radio" aria-checked={mode === m} aria-disabled={off}
                     data-testid={`word-spell-mode-${m}`} onClick={() => pick(m)}
-                    className={cn("h-11 rounded-button border-[0.5px] border-hair px-3 text-sub font-semibold", mode === m ? "bg-blue-tint text-blue" : "text-ink-2", off && "opacity-50")}>
+                    className={cn("h-11 rounded-button border-[0.5px] border-hair px-3 text-sub font-semibold", mode === m ? "bg-blue-tint text-blue liquid:bg-wash liquid:text-ink" : "text-ink-2 liquid:text-ink-2", off && "opacity-50")}>
                     {t(`web.wordSpell.modes.${m}`)}
                   </button>
                 );
