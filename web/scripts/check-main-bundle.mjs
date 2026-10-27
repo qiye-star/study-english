@@ -1,4 +1,5 @@
-// Usage (after yarn web:build): node scripts/check-main-bundle.mjs [--record] [--max-delta=0.2]
+// Usage (after yarn web:build): node scripts/check-main-bundle.mjs [--record] [--max-delta=0.8]
+// Default budget 0.8 kB: plan 2026-10-27 Addendum (word spelling copy is eager; measured +0.69 kB).
 // --record writes the current value as the baseline (only on the commit the plan names; commit main-bundle-baseline.json).
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -20,7 +21,7 @@ if (process.argv.includes("--record")) {
   process.exit(0);
 }
 const maxArg = process.argv.find((a) => a.startsWith("--max-delta="));
-const max = maxArg ? Number(maxArg.split("=")[1]) : 0.2;
+const max = maxArg ? Number(maxArg.split("=")[1]) : 0.8;
 const base = JSON.parse(readFileSync(baselinePath, "utf8"));
 const { delta, ok } = checkDelta(base.gzipKb, kb, max);
 console.log(`delta vs baseline ${base.gzipKb} kB: ${delta >= 0 ? "+" : ""}${delta} kB (budget ${max} kB)`);

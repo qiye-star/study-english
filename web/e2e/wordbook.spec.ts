@@ -57,7 +57,7 @@ test("wordbook: pick a book -> learn 5 words -> spelling -> 我的 row", async (
   await expect(page.getByTestId("wordbook-card")).toContainText("新词还剩 15");
 
   // 按句拼写:有句组就逐空填写并提交,出现得分(role=status);没有句组时提示先学新词,也算通过
-  await page.goto("/wordbook/spell");
+  await page.goto("/wordbook/spell/sentences");
   const spellPage = page.getByTestId("wordbook-spell-page");
   await expect(spellPage).toBeVisible();
   const empty = page.getByText("先学几个新词再来拼写");

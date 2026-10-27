@@ -1,6 +1,6 @@
 # web/src/features/wordbook/spell/
 
-按句拼写 · 模式 A (spec §6.6, §11.5): target-word blanks in dataset sentences, one hidden input, deterministic server grading.
+例句拼写(原「按句拼写」)· 模式 A (spec §6.6, §11.5): target-word blanks in dataset sentences, one hidden input, deterministic server grading. Route `/wordbook/spell/sentences` (plan 2026-10-27 R-W1/R-W2); the entry page is `../word-spell/spell-hub-page.tsx` at `/wordbook/spell`. Single-word spelling lives in `../word-spell/`.
 
 ## What lives here
 - `cloze-engine.ts` (pure reducer + `interpretInput(prev, next)` hidden-input diff interpreter, `SENTINEL` = U+200B).

@@ -22,6 +22,7 @@ KEYS = {"config", "books", "enrollment", "today", "learn_batch", "answer_choice"
 GOALS_KEYS = {"enrollment_patch", "bonus", "pause", "today_paused", "resume", "reset"}  # 计划 2026-10-11 GS5
 DEFS_KEYS = {"def_lang_patch"}  # 计划 2026-10-12-wordbook-definitions-server P1
 LEARNED_KEYS = {"learned_summary", "learned_list", "learned_card", "free_start", "answer_free"}  # 计划 2026-10-12-wordbook-learned-review S6
+WORD_SPELL_KEYS = {"word_spell_start"}  # 计划 2026-10-27 W1(单词拼写出题)
 CLIP_KEYS = {"review_cloze_clip"}  # L4 Task 14 (R16): a cloze question carrying the learner's own library clip
 
 
@@ -88,6 +89,7 @@ async def collect_learned(client, h) -> dict:
     out["learned_list"] = await ok(await client.post(f"{URL}/learned/query", headers=h, json={"limit": 2}))  # limit 2 → next_cursor 是字符串
     out["learned_card"] = await ok(await client.post(f"{URL}/learned/card", headers=h, json={"book_id": "junior", "key": "talk"}))
     out["free_start"] = await ok(await client.post(f"{URL}/free/start", headers=h, json={"scope": "all", "mode": "choice", "count": 10}))
+    out["word_spell_start"] = await ok(await client.post(f"{URL}/word-spell/start", headers=h, json={"count": 10}))  # 只读,不扣次数
     out["answer_free"] = await ok(await client.post(f"{URL}/answers", headers=h, json={  # able 盒 2、未到期:答错 → 入队
         "book_id": "junior", "key": "able", "mode": "free", "qtype": "word", "choice": "stop"}))
     return out
@@ -145,7 +147,7 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     real = random.Random
     monkeypatch.setattr(random, "Random", lambda seed=0: real(seed))  # 句组抽词固定,样例稳定
     actual = await collect(app, client, tmp_path, monkeypatch)
-    assert set(actual) == KEYS | GOALS_KEYS | LEARNED_KEYS | DEFS_KEYS | CLIP_KEYS
+    assert set(actual) == KEYS | GOALS_KEYS | LEARNED_KEYS | DEFS_KEYS | CLIP_KEYS | WORD_SPELL_KEYS
     if os.environ.get("CONTRACT_UPDATE"):
         FIXTURE.write_text(json.dumps(actual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
                            newline="\n")
@@ -157,7 +159,9 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     assert shape(actual) == shape(expected)
     # 录制的样例里不能有令牌、密钥或本机路径
     raw = FIXTURE.read_text(encoding="utf-8")
-    assert "access_token" not in raw and "secret" not in raw and str(tmp_path.anchor) not in raw.replace("\\\\", "\\")
+    # POSIX tmp_path.anchor is "/", which occurs in ordinary text such as "n/v"; only check a real path prefix.
+    anchor_leak = len(str(tmp_path)) > len(tmp_path.anchor) + 3 and str(tmp_path) in raw
+    assert "access_token" not in raw and "secret" not in raw and not anchor_leak
     # 列表非空(shape 只看第一个元素)、契约里没有以词为键的映射
     for path in (("learn_batch", "cards"), ("learn_batch", "quiz"), ("learn_batch", "drill"), ("review_batch", "questions"),
                  ("review_batch", "cards"), ("spell_sets", "sets"), ("spell_submit", "words"), ("books", "books"),
@@ -174,6 +178,7 @@ async def test_wordbook_payloads_match_the_web_contract(app, client, tmp_path, m
     assert expected["answer_check"]["outcome"] == "pending" and expected["answer_check"]["check"]["options"]
     assert expected["learned_list"]["next_cursor"] and expected["answer_free"]["applied"] is True
     assert expected["free_start"]["items"][0]["question"]["options"]
+    assert expected["word_spell_start"]["items"][0]["question"]["qtype"] == "spell"
     # 英文释义(计划 2026-10-12-wordbook-definitions-server P1):每个返回词卡的端点,首张卡都带 defs_en
     assert expected["config"]["def_lang"] == "en" and expected["def_lang_patch"]["def_lang"] == "zh"
     for cards in (expected["learn_batch"]["cards"], expected["review_batch"]["cards"], [expected["card"]],

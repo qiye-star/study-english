@@ -1,7 +1,7 @@
 {
   "web": {
     "wordbookSpell": {
-      "title": "Spell in context",
+      "title": "Sentence spelling",
       "resultsTitle": "Set results",
       "input": "Blank {{n}} of {{total}}",
       "blank": "Blank {{n}} of {{total}}, tap to type",

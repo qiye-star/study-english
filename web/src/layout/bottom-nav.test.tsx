@@ -89,7 +89,7 @@ describe("BottomNav", () => {
   });
 
   it("highlights 练习 on wordbook pages (they are entered from the practice tab)", async () => {
-    for (const route of ["/wordbook", "/wordbook/learn", "/wordbook/spell"]) {
+    for (const route of ["/wordbook", "/wordbook/learn", "/wordbook/spell", "/wordbook/spell/sentences"]) {
       const { unmount } = await mount(false, route);
       expect(screen.getByTestId("nav-practice")).toHaveAttribute("aria-current", "page");
       expect(screen.getByTestId("nav-me")).not.toHaveAttribute("aria-current");

@@ -1,0 +1,23 @@
+{
+  "web": {
+    "wordSpell": {
+      "title": "单词拼写",
+      "modes": {
+        "dictation": "单词听写",
+        "meaning": "看中文拼英文"
+      },
+      "dictationOff": "朗读不可用,只能看中文拼英文",
+      "count": "{{n}} 个词",
+      "startHint": "一轮 {{n}} 个词;不计入复习进度与段位",
+      "start": "开始",
+      "dictationHint": "听发音,写出你听到的单词",
+      "peekAria": "显示单词",
+      "peekButton": "想不起来?点这里看单词",
+      "peekHint": "想不起来?点下面的按钮,或点输入框的边框看单词",
+      "finish": "看结果",
+      "skip": "跳过",
+      "peeked": "看过单词",
+      "skipped": "跳过 {{n}} 题"
+    }
+  }
+}

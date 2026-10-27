@@ -36,6 +36,12 @@
         "subtitle": "{{book}} · 已掌握 {{m}} 词",
         "pick": "还没选词书"
       },
+      "spellHub": {
+        "sentences": "例句拼写",
+        "sentencesHint": "今天学过的词放回例句里拼",
+        "words": "单词拼写",
+        "wordsHint": "听写或看中文拼英文"
+      },
       "home": {
         "settings": "每日目标设置",
         "total": "共 {{n}} 词",
@@ -52,8 +58,8 @@
         "reviewHint": "到期 {{n}} 个",
         "learn": "学新词",
         "learnHint": "一轮 5 个:词卡 → 小测",
-        "spell": "按句拼写",
-        "spellHint": "今天学过的词放回例句里拼",
+        "spell": "拼写",
+        "spellHint": "例句拼写 · 单词拼写",
         "finished": "已完成",
         "backlog": "复习积压,今天少学新词",
         "switchBook": "换一本",
@@ -108,7 +114,7 @@
         "startQuiz": "开始小测",
         "quiz": "小测",
         "empty": "今天的新词学完了",
-        "emptyHint": "去复习或按句拼写巩固一下吧。",
+        "emptyHint": "去复习或拼写巩固一下吧。",
         "reveal": "显示释义",
         "revealHint": "先在心里想一想,再点开核对",
         "peekedNote": "已看过释义:点「认识」会记为「模糊」",

@@ -38,7 +38,7 @@ describe("WordbookHomePage", () => {
     expect(screen.getByTestId("wordbook-action-learn")).toHaveAttribute("href", "/wordbook/learn");
     expect(screen.getByTestId("wordbook-action-learn")).toHaveTextContent("12");
     expect(screen.getByTestId("wordbook-action-spell")).toHaveAttribute("href", "/wordbook/spell");
-    expect(screen.getByTestId("wordbook-action-spell")).toHaveTextContent("按句拼写");
+    expect(screen.getByTestId("wordbook-action-spell")).toHaveTextContent("拼写");
     expect(screen.getByRole("button", { name: "每日目标设置" })).toBeTruthy();
     expect(screen.queryByText("今天的目标完成了")).toBeNull();
     expect(screen.queryByText("复习积压,今天少学新词")).toBeNull();

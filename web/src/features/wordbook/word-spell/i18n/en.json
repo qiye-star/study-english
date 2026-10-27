@@ -1,0 +1,23 @@
+{
+  "web": {
+    "wordSpell": {
+      "title": "Word spelling",
+      "modes": {
+        "dictation": "Dictation",
+        "meaning": "Meaning to word"
+      },
+      "dictationOff": "Read-aloud is unavailable; only meaning to word is offered",
+      "count": "{{n}} words",
+      "startHint": "{{n}} words per round; not counted in review progress or rank",
+      "start": "Start",
+      "dictationHint": "Listen and write the word you hear",
+      "peekAria": "Show the word",
+      "peekButton": "Stuck? Tap here to see the word",
+      "peekHint": "Stuck? Tap the button below, or the input border, to see the word",
+      "finish": "See results",
+      "skip": "Skip",
+      "peeked": "Looked at the word",
+      "skipped": "{{n}} skipped"
+    }
+  }
+}
