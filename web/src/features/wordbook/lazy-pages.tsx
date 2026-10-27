@@ -24,4 +24,5 @@ export const WordbookLearnPage = lazyPage(() => import("./learn-page"), "Wordboo
 export const WordbookReviewPage = lazyPage(() => import("./review-page"), "WordbookReviewPage");
 export const WordbookSpellPage = lazyPage(() => import("./spell/spell-page"), "WordbookSpellPage");
 export const WordbookSpellHubPage = lazyPage(() => import("./word-spell/spell-hub-page"), "WordbookSpellHubPage");
+export const WordbookWordSpellPage = lazyPage(() => import("./word-spell/word-spell-page"), "WordbookWordSpellPage");
 export const WordbookLearnedPage = lazyPage(() => import("./learned-page"), "WordbookLearnedPage");

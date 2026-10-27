@@ -16,7 +16,7 @@ import { VocabularyPage } from "~/features/vocabulary";
 import { AgentSettingsPage, MemoryPage } from "~/features/agents";
 import {
   WordbookBooksPage, WordbookHomePage, WordbookLearnedPage, WordbookLearnPage, WordbookReviewPage, WordbookSpellHubPage,
-  WordbookSpellPage,
+  WordbookSpellPage, WordbookWordSpellPage,
 } from "~/features/wordbook";
 import { LibraryListPage, LibraryPlayerPage } from "~/features/library";
 import { DubHomeRoute, DubItemRoute } from "~/features/dubbing";
@@ -106,6 +106,7 @@ export function AppRoutes() {
             <Route path="/wordbook/review" element={<WordbookReviewPage />} />
             <Route path="/wordbook/spell" element={<WordbookSpellHubPage />} />
             <Route path="/wordbook/spell/sentences" element={<WordbookSpellPage />} />
+            <Route path="/wordbook/spell/words" element={<WordbookWordSpellPage />} />
             <Route path="/wordbook/learned" element={<WordbookLearnedPage />} />
             <Route path="/library" element={<LibraryListPage />} />
             <Route path="/library/:id" element={<LibraryPlayerPage />} />

@@ -13,6 +13,8 @@ const MARKS: Array<[file: string, atLeast: number]> = [
   ["features/wordbook/session-summary.tsx", 1],
   ["features/wordbook/spell/spell-results.tsx", 2],
   ["features/wordbook/spell/explain-sheet.tsx", 1],
+  // 单词拼写(plan 2026-10-27 R-W7):只有答后的正确拼写可查词;答前的题面、偷看牌子与输入区不带
+  ["features/wordbook/word-spell/word-spell-question.tsx", 1],
 ];
 
 describe("lookup marks: wordbook", () => {

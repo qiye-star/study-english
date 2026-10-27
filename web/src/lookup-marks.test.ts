@@ -30,6 +30,7 @@ const LEGACY = [
 /** 各分区守卫(lookup-marks.<lane>.test.ts)新增的文件。 */
 const LANES = [
   "features/wordbook/word-card.tsx", "features/wordbook/defs-en.tsx", "features/wordbook/phrases-section.tsx", "features/wordbook/after-answer-panel.tsx",
+  "features/wordbook/word-spell/word-spell-question.tsx",
   "features/wordbook/typing-question.tsx", "features/wordbook/session-summary.tsx", "features/wordbook/spell/spell-results.tsx", "features/wordbook/spell/explain-sheet.tsx",
   "features/agents/tutor/tutor-bar.tsx", "features/agents/tutor/tutor-recap-card.tsx", "features/agents/persona-editor-sheet.tsx",
   "features/rooms/room-message-list.tsx", "features/rooms/voice/voice-bubble.tsx", "features/rooms/assist/assist-dock.tsx", "features/rooms/assist/suggestion-card.tsx",
