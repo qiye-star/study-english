@@ -107,12 +107,14 @@ def segment_admin_out(seg: CatalogSegment) -> dict:
 
 async def create(session: AsyncSession, *, source: str, status: str, title: str, level: str | None, tags: list[str],
                  license_note: str | None, ai_lang: str, source_url: str | None = None,
-                 source_host: str | None = None, upload_total: int = 0) -> CatalogItem:
+                 source_host: str | None = None, upload_total: int = 0,
+                 source_md5: str | None = None) -> CatalogItem:
     now = utcnow()
     row = CatalogItem(title=(title or "")[:TITLE_MAX], level=level, tags=",".join(tags) or None,
                       license_note=license_note, source=source, status=status, source_url=source_url,
                       source_host=(source_host or None) and source_host[:64], ai_lang=ai_lang,
-                      upload_total=upload_total, upload_received=0, created_at=now, updated_at=now)
+                      upload_total=upload_total, upload_received=0, source_md5=source_md5,
+                      created_at=now, updated_at=now)
     session.add(row)
     await session.commit()
     return row
@@ -147,6 +149,20 @@ async def list_published(session: AsyncSession, user_id: int) -> list[tuple[Cata
 async def list_all(session: AsyncSession) -> list[CatalogItem]:
     return list((await session.scalars(select(CatalogItem).order_by(CatalogItem.created_at.desc(),
                                                                     CatalogItem.id.desc()))).all())
+
+
+async def find_by_source_md5(session: AsyncSession, md5s: list[str]) -> list[CatalogItem]:
+    """Every row (any status, retired or not) whose package fingerprint is one of `md5s`, newest first (R-S3)."""
+    return list((await session.scalars(select(CatalogItem).where(CatalogItem.source_md5.in_(md5s))
+                                       .order_by(CatalogItem.created_at.desc(), CatalogItem.id.desc()))).all())
+
+
+async def has_active_source_md5(session: AsyncSession, md5: str) -> bool:
+    """R-S2: an unretired item in an active or ready state already holds this package (failed / canceled do not)."""
+    found = await session.scalar(select(CatalogItem.id).where(
+        CatalogItem.source_md5 == md5, CatalogItem.retired_at.is_(None),
+        CatalogItem.status.in_(("uploading", "queued", "processing", "ready"))).limit(1))
+    return found is not None
 
 
 async def segments_of(session: AsyncSession, catalog_id: str) -> list[CatalogSegment]:
