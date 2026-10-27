@@ -9,6 +9,8 @@
   ],
   "scripts": {
     "start:enjoy": "echo 'Please use `yarn enjoy:start` instead'",
+    "export:enjoy": "node scripts/enjoy-export.mjs",
+    "scripts:test": "node --test \"scripts/enjoy-export/*.test.mjs\"",
     "enjoy:add": "yarn workspace enjoy add",
     "enjoy:remove": "yarn workspace enjoy remove",
     "enjoy:dev": "yarn workspace enjoy dev",

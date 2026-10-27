@@ -156,3 +156,7 @@ web/.env
 
 # 本地部署脚本配置(服务器地址等),不进 git
 /scripts/deploy.env
+
+# Enjoy export packages (scripts/enjoy-export.mjs): may hold media, never commit
+/enjoy-export-*.zip
+*.zip.partial
