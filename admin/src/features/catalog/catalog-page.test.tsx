@@ -87,3 +87,18 @@ describe("CatalogPage", () => {
     expect(screen.getByText(/翻译/)).toBeInTheDocument();
   });
 });
+
+describe("CatalogPage package import button", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("operators see 导入包; viewers do not", async () => {
+    setup("operator");
+    expect(await screen.findByText("Talk one")).toBeInTheDocument();
+    expect(screen.getByTestId("catalog-package-import")).toHaveTextContent(S.actions.package);
+    cleanup();
+    session.resetSessionForTests();
+    setup("viewer");
+    expect(await screen.findByText("Talk one")).toBeInTheDocument();
+    expect(screen.queryByTestId("catalog-package-import")).not.toBeInTheDocument();
+  });
+});
