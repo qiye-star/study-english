@@ -222,7 +222,7 @@ describe("RoomPage", () => {
     const mock = setup({ "POST /api/rooms/r1/messages/m2/report": () => json({ ok: true }) });
     await live();
     FakeWebSocket.last!.push({ type: "message", message: user(2, "spam spam") });
-    fireEvent.click(screen.getByText("spam spam"));
+    fireEvent.click(screen.getByText("spam spam").closest("[data-testid=room-message]")!);
     fireEvent.click(screen.getByTestId("room-report"));
     fireEvent.click(await screen.findByRole("button", { name: "垃圾信息" }));
     await waitFor(() => expect(mock.calls.some((c) => c.url.pathname === "/api/rooms/r1/messages/m2/report")).toBe(true));

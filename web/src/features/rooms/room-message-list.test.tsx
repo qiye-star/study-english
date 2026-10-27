@@ -13,6 +13,9 @@ const msg = (seq: number, text: string, over: Partial<RoomMessage> = {}): RoomMe
   aiStatus: null, meta: null, createdAt: "", quote: null, voice: null, reactions: [], ...over,
 });
 
+/** 点气泡的留白(不是文字):文字是查词区,点它走查词而不展开操作行 */
+const bubbleOf = (text: string) => screen.getByText(text).closest<HTMLElement>('[data-testid="room-message"]')!;
+
 function stateWith(messages: RoomMessage[]): RoomState {
   return { ...initialRoomState(), status: "live", me: { userId: 11, role: "owner" }, messages };
 }
@@ -34,9 +37,15 @@ describe("RoomMessageList (v2 extras)", () => {
   it("opens the action row on tap and quotes the message", () => {
     const { props } = setup([msg(3, "What snacks do you like?")]);
     expect(screen.queryByTestId("msg-quote")).toBeNull();
-    fireEvent.click(screen.getByText("What snacks do you like?"));
+    fireEvent.click(bubbleOf("What snacks do you like?"));
     fireEvent.click(screen.getByTestId("msg-quote"));
     expect(props.onQuote).toHaveBeenCalledWith(expect.objectContaining({ seq: 3 }));
+    expect(screen.queryByTestId("msg-quote")).toBeNull();
+  });
+
+  it("tapping the text (a lookup area) does not open the action row", () => {
+    setup([msg(3, "What snacks do you like?")]);
+    fireEvent.click(screen.getByText("What snacks do you like?"));
     expect(screen.queryByTestId("msg-quote")).toBeNull();
   });
 
@@ -50,7 +59,7 @@ describe("RoomMessageList (v2 extras)", () => {
 
   it("reacts with the message seq and closes the row", () => {
     const { props } = setup([msg(3, "Hi", { reactions: [{ key: "like", userIds: [11] }] })]);
-    fireEvent.click(screen.getByText("Hi"));
+    fireEvent.click(bubbleOf("Hi"));
     fireEvent.click(screen.getByTestId("react-like"));
     expect(props.onReact).toHaveBeenCalledWith(3, "like", false);
     expect(screen.queryByTestId("react-like")).toBeNull();
@@ -66,7 +75,7 @@ describe("RoomMessageList (v2 extras)", () => {
         return json({ choices: [{ message: { content: "还没有。它甜吗?" } }] });
       },
     });
-    fireEvent.click(screen.getByText("Not yet. Is it sweet?"));
+    fireEvent.click(bubbleOf("Not yet. Is it sweet?"));
     fireEvent.click(screen.getByTestId("msg-translate"));
     await waitFor(() => expect(screen.getByTestId("room-translation")).toHaveAttribute("data-status", "done"));
     expect(screen.getByTestId("room-translation").textContent).toContain("还没有。它甜吗?");
@@ -76,7 +85,7 @@ describe("RoomMessageList (v2 extras)", () => {
 
   it("does not offer translate for a message already in the native language, nor for voice", () => {
     setup([msg(3, "我也喜欢巧克力"), msg(4, "", { kind: "voice", voice: { durationMs: 1000, status: "pending", transcript: null, lang: null, translation: null, translationStatus: null, attempts: 0, audio: true } })]);
-    fireEvent.click(screen.getByText("我也喜欢巧克力"));
+    fireEvent.click(bubbleOf("我也喜欢巧克力"));
     expect(screen.queryByTestId("msg-translate")).toBeNull();
     expect(screen.queryByTestId("msg-speak")).toBeNull(); // all-Chinese text has nothing to read aloud (R-AW9)
     const voice = screen.getAllByTestId("room-message").find((m) => m.dataset.kind === "voice")!;
@@ -90,7 +99,7 @@ describe("RoomMessageList (v2 extras)", () => {
     setup([msg(3, "Any food?"), msg(4, "Noodles!", { sender: { kind: "user", id: 11, name: "alice" }, quote: { seq: 3, name: "bob", kind: "text", text: "Any food?" } })]);
     const mine = screen.getAllByTestId("room-message").find((m) => m.dataset.mine === "true")!;
     expect(within(mine).getByTestId("quote-block").textContent).toContain("bob");
-    fireEvent.click(within(mine).getByText("Noodles!"));
+    fireEvent.click(mine);
     expect(screen.getByTestId("msg-quote")).toBeTruthy();
     expect(screen.queryByTestId("room-report")).toBeNull();
   });
@@ -128,7 +137,7 @@ describe("RoomMessageList bubble layout (short own messages wrapped per letter)"
 
   it("a tap on the empty part of a row still closes the open action row", () => {
     setup([msg(3, "Hi", { sender: { kind: "user", id: 11, name: "alice" } })]);
-    fireEvent.click(screen.getByText("Hi"));
+    fireEvent.click(bubbleOf("Hi"));
     expect(screen.getByTestId("msg-quote")).toBeTruthy();
     fireEvent.pointerDown(screen.getByText("Hi")); // inside the bubble: stays open
     expect(screen.getByTestId("msg-quote")).toBeTruthy();

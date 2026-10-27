@@ -19,7 +19,7 @@ import { QuoteBlock } from "./extras/quote-block";
 import { ReactionBar } from "./extras/reaction-bar";
 import { TextTranslation } from "./extras/text-translation";
 import { isMostlyNative, speakable, spokenText } from "./extras/text-tools";
-import { lookupContext } from "~/lib/lookup-context";
+import { LOOKUP_CONTEXT_SELECTOR, TAP_OFF_SELECTOR, lookupContext } from "~/lib/lookup-context";
 import type { ReactionKey, RoomMessage } from "./protocol";
 import type { RoomState } from "./room-state";
 import { TranslateQueue } from "./voice/translate-queue";
@@ -211,7 +211,12 @@ export const RoomMessageList = memo(function RoomMessageList({
   const toggle = (m: RoomMessage) => setSelected((cur) => (cur === m.id ? null : m.id));
   /** 点气泡 = 指针的快捷方式(不是 role=button:气泡里的播放、转文字、翻译、引用都要单独给读屏,review M7) */
   const selectable = (m: RoomMessage) => ({
-    onClick: (e: MouseEvent) => { if (!(e.target as HTMLElement).closest("button, a, audio")) toggle(m); },
+    onClick: (e: MouseEvent) => {
+      const el = e.target as HTMLElement;
+      // 点英文词 = 查词(全局查词层处理),不同时展开操作行;点气泡的其余位置或「⋯」才展开
+      if (el.closest("button, a, audio") || (el.closest(LOOKUP_CONTEXT_SELECTOR) && !el.closest(TAP_OFF_SELECTOR))) return;
+      toggle(m);
+    },
   });
   /** 气泡旁的「更多操作」:键盘与读屏打开操作行的入口;视觉 28px,命中区扩到 44px */
   const moreButton = (m: RoomMessage) => (
