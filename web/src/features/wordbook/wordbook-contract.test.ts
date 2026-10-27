@@ -221,6 +221,13 @@ describe("wordbook contract (server fixture)", () => {
     expect(keysOf(free.items[0])).toEqual(keys(FREE_ITEM));
     expectCard(free.items[0].card);
     expect(keysOf(free.items[0].question as Question)).toEqual(keys(QUESTION));
+    // 单词拼写出题(计划 2026-10-27 R-W3):与 free_start 同形,题型固定 spell,词只在响应体里
+    const wordSpell = cc<{ setId: string; bookId: string; items: FreeItem[] }>(c.word_spell_start);
+    expect(wordSpell.bookId).toBe("junior");
+    expect(keysOf(wordSpell.items[0])).toEqual(keys(FREE_ITEM));
+    expectCard(wordSpell.items[0].card);
+    expect(keysOf(wordSpell.items[0].question as Question)).toEqual(keys(QUESTION));
+    expect(wordSpell.items[0].question?.qtype).toBe("spell");
     const answer = cc<AnswerResult>(c.answer_free);
     expect(answerKeys(answer)).toEqual(keys(ANSWER));
     expect(answer.applied).toBe(true);

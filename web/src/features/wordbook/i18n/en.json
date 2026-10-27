@@ -36,6 +36,12 @@
         "subtitle": "{{book}} · {{m}} mastered",
         "pick": "No book chosen yet"
       },
+      "spellHub": {
+        "sentences": "Sentence spelling",
+        "sentencesHint": "Put today's words back into example sentences",
+        "words": "Word spelling",
+        "wordsHint": "Dictation or spell from the meaning"
+      },
       "home": {
         "settings": "Daily goal settings",
         "total": "{{n}} words",
@@ -52,8 +58,8 @@
         "reviewHint": "{{n}} due",
         "learn": "Learn new words",
         "learnHint": "5 per round: cards, then a quick quiz",
-        "spell": "Spell in sentences",
-        "spellHint": "Put today's words back into example sentences",
+        "spell": "Spelling",
+        "spellHint": "Sentence spelling · Word spelling",
         "finished": "Done",
         "backlog": "Reviews are piling up — fewer new words today",
         "switchBook": "Pick another",
@@ -108,7 +114,7 @@
         "startQuiz": "Start quiz",
         "quiz": "Quick quiz",
         "empty": "Today's new words are done",
-        "emptyHint": "Review or spell in sentences to lock them in.",
+        "emptyHint": "Review or spell to lock them in.",
         "reveal": "Show meaning",
         "revealHint": "Think of it first, then check",
         "peekedNote": "You peeked: \"I know it\" will count as \"Not sure\"",

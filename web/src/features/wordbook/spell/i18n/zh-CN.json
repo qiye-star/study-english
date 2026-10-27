@@ -1,7 +1,7 @@
 {
   "web": {
     "wordbookSpell": {
-      "title": "按句拼写",
+      "title": "例句拼写",
       "resultsTitle": "本组结果",
       "input": "第 {{n}} 空,共 {{total}} 空",
       "blank": "第 {{n}} 空,共 {{total}} 空,点按输入",
