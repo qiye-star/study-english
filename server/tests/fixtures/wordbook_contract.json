@@ -1672,5 +1672,281 @@
       "start_ms": 1000,
       "end_ms": 4000
     }
+  },
+  "word_spell_start": {
+    "set_id": "2df747ccc003",
+    "book_id": "junior",
+    "items": [
+      {
+        "book_id": "junior",
+        "card": {
+          "key": "absorb",
+          "word": "absorb",
+          "us": "əbˈsɔrb",
+          "uk": "əbˈzɔːb",
+          "senses": [
+            {
+              "pos": "v",
+              "text": "吸收；使专心"
+            }
+          ],
+          "phrases": [],
+          "examples": [
+            {
+              "id": "aac501f98a9a99f1",
+              "en": "Plants absorb carbon dioxide from the air around them.",
+              "zh": "植物从周围的空气中吸收二氧化碳。"
+            }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "take in a liquid or gas slowly"
+            }
+          ]
+        },
+        "question": {
+          "key": "absorb",
+          "qtype": "spell",
+          "prompt": {
+            "meaning": "v. 吸收；使专心",
+            "us": "əbˈsɔrb"
+          },
+          "options": null,
+          "length": 6
+        }
+      },
+      {
+        "book_id": "junior",
+        "card": {
+          "key": "able",
+          "word": "able",
+          "us": "ˈebl",
+          "uk": "ˈeɪbl",
+          "senses": [
+            {
+              "pos": "adj",
+              "text": "能够的；有能力的"
+            }
+          ],
+          "phrases": [
+            {
+              "en": "be able to",
+              "zh": "能够"
+            }
+          ],
+          "examples": [
+            {
+              "id": "e1653dab859555f0",
+              "en": "Will you be able to come to the party tonight?",
+              "zh": "你今晚能来参加聚会吗？"
+            }
+          ],
+          "defs_en": [
+            {
+              "pos": "a",
+              "text": "having the power or skill to do something"
+            }
+          ]
+        },
+        "question": {
+          "key": "able",
+          "qtype": "spell",
+          "prompt": {
+            "meaning": "adj. 能够的；有能力的",
+            "us": "ˈebl"
+          },
+          "options": null,
+          "length": 4
+        }
+      },
+      {
+        "book_id": "junior",
+        "card": {
+          "key": "talk",
+          "word": "talk",
+          "us": "tɔk",
+          "uk": "tɔːk",
+          "senses": [
+            {
+              "pos": "v",
+              "text": "说话；谈话"
+            },
+            {
+              "pos": "n",
+              "text": "交谈"
+            },
+            {
+              "pos": "n/v",
+              "text": "谈话，讲话"
+            }
+          ],
+          "phrases": [
+            {
+              "en": "talk about",
+              "zh": "谈论某事"
+            }
+          ],
+          "examples": [
+            {
+              "id": "7e85d989af375d39",
+              "en": "I could hear Sarah and Andy talking in the next room.",
+              "zh": "我听到萨拉和安迪在隔壁讲话。"
+            },
+            {
+              "id": "394aec411d520fe7",
+              "en": "After a long talk, we decided on divorce.",
+              "zh": "经过一次长谈后，我们决定离婚。"
+            },
+            {
+              "id": "e8fc5b6c9d8c1d35",
+              "en": "Sue and Bob still aren’t talking.",
+              "zh": "休和鲍勃仍然互不理睬。"
+            }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "speak to someone"
+            },
+            {
+              "pos": "v",
+              "text": "have a conversation"
+            },
+            {
+              "pos": "n",
+              "text": "a conversation between people"
+            }
+          ]
+        },
+        "question": {
+          "key": "talk",
+          "qtype": "spell",
+          "prompt": {
+            "meaning": "v. 说话；谈话；n. 交谈",
+            "us": "tɔk"
+          },
+          "options": null,
+          "length": 4
+        }
+      },
+      {
+        "book_id": "junior",
+        "card": {
+          "key": "ability",
+          "word": "ability",
+          "us": "əˈbɪləti",
+          "uk": "",
+          "senses": [
+            {
+              "pos": "n",
+              "text": "能力，能耐；才能"
+            }
+          ],
+          "phrases": [],
+          "examples": [
+            {
+              "id": "1b734423bc1ad291",
+              "en": "She has the ability to learn new languages quickly.",
+              "zh": "她有快速学习新语言的能力。"
+            }
+          ],
+          "defs_en": [
+            {
+              "pos": "n",
+              "text": "the power or skill to do something"
+            }
+          ]
+        },
+        "question": {
+          "key": "ability",
+          "qtype": "spell",
+          "prompt": {
+            "meaning": "n. 能力，能耐；才能",
+            "us": "əˈbɪləti"
+          },
+          "options": null,
+          "length": 7
+        }
+      },
+      {
+        "book_id": "junior",
+        "card": {
+          "key": "accept",
+          "word": "accept",
+          "us": "əkˈsɛpt",
+          "uk": "əkˈsept",
+          "senses": [
+            {
+              "pos": "v",
+              "text": "接受；承认"
+            }
+          ],
+          "phrases": [],
+          "examples": [
+            {
+              "id": "c197b6c583b18c30",
+              "en": "I am happy to accept your kind invitation.",
+              "zh": "我很高兴接受你的盛情邀请。"
+            }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "agree to take something offered"
+            }
+          ]
+        },
+        "question": {
+          "key": "accept",
+          "qtype": "spell",
+          "prompt": {
+            "meaning": "v. 接受；承认",
+            "us": "əkˈsɛpt"
+          },
+          "options": null,
+          "length": 6
+        }
+      },
+      {
+        "book_id": "junior",
+        "card": {
+          "key": "abandon",
+          "word": "abandon",
+          "us": "əˈbændən",
+          "uk": "əˈbændən",
+          "senses": [
+            {
+              "pos": "v",
+              "text": "放弃；抛弃"
+            }
+          ],
+          "phrases": [],
+          "examples": [
+            {
+              "id": "4824cd531ce5ac2b",
+              "en": "They had to abandon the car in the deep snow.",
+              "zh": "他们只好把车弃在深雪里。"
+            }
+          ],
+          "defs_en": [
+            {
+              "pos": "v",
+              "text": "leave something or someone for good"
+            }
+          ]
+        },
+        "question": {
+          "key": "abandon",
+          "qtype": "spell",
+          "prompt": {
+            "meaning": "v. 放弃；抛弃",
+            "us": "əˈbændən"
+          },
+          "options": null,
+          "length": 7
+        }
+      }
+    ]
   }
 }

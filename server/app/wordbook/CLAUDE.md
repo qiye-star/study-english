@@ -66,6 +66,7 @@ Fixture book: `tests/fixtures/wordbook/mini.jsonl`; helpers `tests/wordbook_help
   答错只可能 `pull_due`(`due_at = now`),受「24 小时内正式复习过、或 24 小时内刚学(没复习过的词看 `created_at`)的不拉」与每日 20 次(`store.FREE_PULLS_DAILY_MAX`)约束。
   改这几条前先读计划 R-L6:`due_at = now` 会通向 `vocab_review`。
 - `free_start` 用系统熵 `random.Random()`(可注入),不用选书 `seed`;空池不扣 `FREE_STARTS_DAILY_MAX`(200)。
+- 单词拼写出题 `POST /word-spell/start`(`service.word_spell_start`,计划 2026-10-27 R-W3):词池同 `spell_sets`(到期 + 今日新学 + 盒 ≤ 3),只取本书来源(`source == wordbook_source(book)`)且 `free_spellable` 的词;不扣任何计数、不写 SRS。作答走 `/answers` 的 `mode:"free"`(`qtype` 为 `dictation` / `spell`),不改盒、不进段位。
 - 契约样例新增 `learned_summary / learned_list / learned_card / free_start / answer_free`。
 - 选词词典 `POST /api/dictionary/lookup` 的词只在 POST 体;`lookup.py` 里不许有 logging 调用,`forms.py` 只记行数、不记词(`test_dictionary_lookup.py::test_the_module_is_not_a_logging_site`);不受 `WORDBOOK_ENABLED` 控制;`DictionaryLookup` 随 `dictionary(app)` 的 store 更换(`lookup_service`)。
 - FSRS 灰度(L3):FSRS 模式下盒子由稳定度推导(`scheduling.derive_box`);`plan.py`、`quiz.py`、`learned.py` 按盒子选题型与分档的规则不要改成读 stability。

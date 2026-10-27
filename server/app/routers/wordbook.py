@@ -145,6 +145,23 @@ async def wordbook_answer(payload: AnswerIn, request: Request, user: User = Depe
         _raise(e)
 
 
+class WordSpellStartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    count: Literal[10, 20] = 10
+    tz_offset_minutes: int = Field(0, ge=TZ_MIN, le=TZ_MAX)
+
+
+@router.post("/word-spell/start")
+async def wordbook_word_spell_start(payload: WordSpellStartIn, request: Request, user: User = Depends(current_user),
+                                    session: AsyncSession = Depends(get_session),
+                                    settings: Settings = Depends(require_wordbook)):
+    try:
+        return await service.word_spell_start(session, dictionary(request.app), user.id, settings,
+                                              count=payload.count, offset=payload.tz_offset_minutes, now=utcnow())
+    except service.WordbookError as e:
+        _raise(e)
+
+
 SENTENCE_ID = r"^[0-9a-f]{16}$"
 
 

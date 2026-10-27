@@ -1085,3 +1085,27 @@ async def free_start(session: AsyncSession, ds: DictionaryStore, user_id: int, s
     if not items:
         fail(NOTHING_TO_REVIEW)
     return {"set_id": secrets.token_hex(6), "scope": scope, "mode": mode, "items": items}
+
+
+async def word_spell_start(session: AsyncSession, ds: DictionaryStore, user_id: int, settings: Settings, *,
+                           count: int, offset: int, now, rng: random.Random | None = None) -> dict:
+    """单词拼写出题(计划 2026-10-27 R-W3):词池同 spell_sets(到期 + 今日新学 + 盒 ≤ 3),只取本书来源且可拼写的词。
+    不扣任何计数、不写 SRS;作答走 /answers 的 free 路径。词只在响应体里。"""
+    e, index = await _active(session, ds, user_id, settings)
+    rng = rng or random.Random()
+    known = await store.known_words(session, user_id)
+    today = await store.today_learned_keys(session, user_id, e.book_id, local_day(now, offset))
+    due = planning.due_keys(index.keys, known, now, SPELL_DUE_POOL)
+    low = [k for k in index.keys if k in known and known[k].box <= 3]
+    source = store.wordbook_source(e.book_id)
+    ordered = [k for k in dict.fromkeys(due + today + low) if k in index and k in known and known[k].source == source]
+    rng.shuffle(ordered)
+    picked = ordered[: count * FREE_OVERSAMPLE]
+    cards = await cards_or_fail(ds, e.book_id, picked) if picked else {}
+    chosen = [cards[k] for k in picked if k in cards and free_spellable(cards[k])][:count]
+    if not chosen:
+        fail(NOTHING_TO_REVIEW)
+    qrng = random.Random(rng.getrandbits(64))
+    items = [{"book_id": e.book_id, "card": card_out(card, ds),
+              "question": question_out(await _question(ds, index, card, "spell", qrng))} for card in chosen]
+    return {"set_id": secrets.token_hex(6), "book_id": e.book_id, "items": items}
