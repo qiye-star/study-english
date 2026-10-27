@@ -76,13 +76,13 @@ Enjoy 英语练习是一个可以自己部署的英语口语练习网站。它�
 
 ### 背单词
 
-选一本词书(初中、高中、四级、六级、考研、托福、SAT),按每日计划学新词、做复习、按句拼写,学过的词随时回看。判分在服务端完成,不消耗上游额度。
+选一本词书(初中、高中、四级、六级、考研、托福、SAT),按每日计划学新词、做复习、做例句拼写和单词拼写,学过的词随时回看。判分在服务端完成,不消耗上游额度。
 
 需设置 `WORDBOOK_ENABLED=true`;「为什么」的 AI 讲解另需 `WORDBOOK_AI_ENABLED=true`(用大模型)。
 
 <table>
   <tr>
-    <td align="center"><img src="./docs/images/readme/07-wordbook-home.png" width="240" alt="背单词首页:词书、今日计划,以及复习、学新词、按句拼写、已学词入口" /><br><sub>背单词首页</sub></td>
+    <td align="center"><img src="./docs/images/readme/07-wordbook-home.png" width="240" alt="背单词首页:词书、今日计划,以及复习、学新词、拼写、已学词入口" /><br><sub>背单词首页</sub></td>
     <td align="center"><img src="./docs/images/readme/08-wordbook-card.png" width="240" alt="学新词词卡:美式与英式音标和发音、释义、例句,以及认识、模糊、不认识按钮" /><br><sub>学新词</sub></td>
   </tr>
 </table>
