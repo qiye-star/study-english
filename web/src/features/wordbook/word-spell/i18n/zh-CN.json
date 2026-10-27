@@ -2,26 +2,18 @@
   "web": {
     "wordSpell": {
       "title": "单词拼写",
-      "modeLabel": "玩法",
-      "countLabel": "一轮词数",
-      "modes": { "dictation": "单词听写", "meaning": "看中文拼英文" },
+      "modes": {
+        "dictation": "单词听写",
+        "meaning": "看中文拼英文"
+      },
       "dictationOff": "朗读不可用,只能看中文拼英文",
       "count": "{{n}} 个词",
       "startHint": "一轮 {{n}} 个词;不计入复习进度与段位",
       "start": "开始",
-      "progress": "第 {{n}} / {{total}} 题",
       "dictationHint": "听发音,写出你听到的单词",
-      "dictationInput": "听写输入",
-      "dictationPlaceholder": "输入你听到的单词",
-      "replay": "再听一遍",
-      "listen": "听单词",
-      "spellInput": "拼写输入",
       "peekAria": "显示单词",
       "peekHint": "想不起来?点输入框的边框看单词",
-      "next": "下一个",
-      "finish": "看结果",
-      "again": "再来一轮",
-      "home": "回到拼写"
+      "finish": "看结果"
     }
   }
 }

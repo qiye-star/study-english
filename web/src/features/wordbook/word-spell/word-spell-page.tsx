@@ -111,7 +111,7 @@ export function WordbookWordSpellPage() {
       <div className="px-4 pb-8">
         {phase === "start" ? (
           <SurfaceCard data-testid="word-spell-start" className="mt-2 space-y-3 px-4 py-[18px]">
-            <div role="radiogroup" aria-label={t("web.wordSpell.modeLabel")} data-testid="word-spell-mode"
+            <div role="radiogroup" aria-label={t("web.wordSpell.title")} data-testid="word-spell-mode"
               className="grid grid-cols-2 gap-2">
               {(["dictation", "meaning"] as const).map((m) => {
                 const off = m === "dictation" && !speaker.available && !speaker.loading;
@@ -125,7 +125,7 @@ export function WordbookWordSpellPage() {
               })}
             </div>
             {!speaker.loading && !speaker.available ? <p className="text-meta text-ink-2">{t("web.wordSpell.dictationOff")}</p> : null}
-            <div role="radiogroup" aria-label={t("web.wordSpell.countLabel")} className="flex gap-2">
+            <div role="radiogroup" aria-label={t("web.wordSpell.title")} className="flex gap-2">
               {COUNTS.map((n) => (
                 <button key={n} type="button" role="radio" aria-checked={count === n} onClick={() => setCount(n)}
                   className={cn("h-11 flex-1 rounded-button border-[0.5px] border-hair text-sub font-semibold", count === n ? "bg-surface-2 text-ink" : "text-ink-2")}>
@@ -141,12 +141,12 @@ export function WordbookWordSpellPage() {
 
         {phase === "run" && current ? (
           <div className="mt-2 space-y-3">
-            <p className="text-meta text-ink-2">{t("web.wordSpell.progress", { n: index + 1, total: items.length })}</p>
+            <p className="text-meta text-ink-2">{index + 1} / {items.length}</p>
             <WordSpellQuestion key={`${index}-${shownMode}`} item={current} mode={shownMode} result={result} busy={busy}
               onSubmit={submit} speaker={speaker} />
             {result ? (
               <button type="button" onClick={next} className={cn(PRIMARY, "h-12 w-full")}>
-                {index + 1 >= items.length ? t("web.wordSpell.finish") : t("web.wordSpell.next")}
+                {index + 1 >= items.length ? t("web.wordSpell.finish") : t("web.wordbook.learn.next")}
               </button>
             ) : null}
           </div>
@@ -154,8 +154,8 @@ export function WordbookWordSpellPage() {
 
         {phase === "done" ? (
           <div className="mt-2">
-            <SessionSummary stats={stats} onAgain={() => setPhase("start")} againLabel={t("web.wordSpell.again")}
-              onHome={() => navigate("/wordbook/spell")} homeLabel={t("web.wordSpell.home")}
+            <SessionSummary stats={stats} onAgain={() => setPhase("start")}
+              onHome={() => navigate("/wordbook")}
               onListen={speaker.listen} listening={speaker.active} canListen={speaker.available} />
           </div>
         ) : null}

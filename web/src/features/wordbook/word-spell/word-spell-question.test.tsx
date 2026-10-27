@@ -34,7 +34,7 @@ describe("WordSpellQuestion (看中文拼英文)", () => {
     const s = setup();
     expect(screen.getByText("v. 说话；谈话")).toBeTruthy();
     expect(screen.queryByText("tɔːk")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "听单词" }));
+    fireEvent.click(screen.getByRole("button", { name: "播放读音" }));
     expect(s.speaker.listen).toHaveBeenCalledWith("talk:q", "talk", "us");
   });
 

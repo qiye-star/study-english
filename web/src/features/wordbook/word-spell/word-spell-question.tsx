@@ -83,14 +83,14 @@ export function WordSpellQuestion({ item, mode, result, busy, onSubmit, speaker 
       {dictation ? (
         <div className="flex items-center gap-3">
           <p className="flex-1 text-sub text-ink-2">{t("web.wordSpell.dictationHint")}</p>
-          <ListenButton id={listenId} text={word} accent="us" label={t("web.wordSpell.replay")} onListen={speaker.listen}
+          <ListenButton id={listenId} text={word} accent="us" label={t("web.wordbook.word.listen.word")} onListen={speaker.listen}
             listening={speaker.active} canListen={speaker.available}
             className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
         </div>
       ) : (
         <div className="flex items-start gap-2">
           <p className="min-w-0 flex-1 text-title font-medium leading-dialogue">{item.question?.prompt.meaning}</p>
-          <ListenButton id={listenId} text={word} accent="us" label={t("web.wordSpell.listen")} onListen={speaker.listen}
+          <ListenButton id={listenId} text={word} accent="us" label={t("web.wordbook.word.listen.word")} onListen={speaker.listen}
             listening={speaker.active} canListen={speaker.available}
             className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
         </div>
@@ -104,8 +104,8 @@ export function WordSpellQuestion({ item, mode, result, busy, onSubmit, speaker 
         className={cn("mt-3 flex min-h-tap items-center gap-2 rounded-button border border-dashed border-hair p-2.5", peekable && "cursor-pointer")}>
         <input ref={inputRef} type="text" value={value} readOnly={result !== null} onChange={(e) => onChange(e.target.value)}
           onCompositionStart={() => setShowing(false)} onKeyDown={onKeyDown}
-          aria-label={t(dictation ? "web.wordSpell.dictationInput" : "web.wordSpell.spellInput")}
-          placeholder={dictation ? t("web.wordSpell.dictationPlaceholder") : undefined}
+          aria-label={t(dictation ? "web.wordbook.quiz.dictationPlaceholder" : "web.wordbook.quiz.spellInput")}
+          placeholder={dictation ? t("web.wordbook.quiz.dictationPlaceholder") : undefined}
           autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} enterKeyHint="done" lang="en"
           className="h-tap min-w-0 flex-1 rounded-button bg-surface-2 px-3 text-title tracking-[0.02em] text-ink placeholder:text-body placeholder:tracking-normal placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring read-only:opacity-80" />
         {peekable ? (
