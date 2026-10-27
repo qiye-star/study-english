@@ -112,7 +112,7 @@ describe("review page · after the answer (meaning)", () => {
     expect(panel).not.toHaveTextContent("接受；承认");
     expect(panel).not.toHaveTextContent("认输");
     expect(within(panel).getByTestId("after-zh")).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("点一下单词会出现横线,再点一次查词");
+    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("点一下单词就能查词");
     const sent = JSON.parse(String(mock.calls.find((c) => c.url.pathname === "/api/wordbook/answers")?.body)) as Record<string, unknown>;
     expect(Object.keys(sent).sort()).toEqual(["book_id", "choice", "key", "mode", "qtype", "tz_offset_minutes"]);
   });

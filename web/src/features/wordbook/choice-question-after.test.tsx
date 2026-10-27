@@ -189,7 +189,7 @@ describe("ChoiceQuestion · no own long-press any more (tap-to-lookup is global)
 describe("ChoiceQuestion · one-time tap-lookup hint", () => {
   it("shows once after the first answered question and not on the next one", () => {
     const first = view(meaning, wrongPick, after());
-    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("点一下单词会出现横线,再点一次查词");
+    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("点一下单词就能查词");
     first.unmount();
     view(wordQ, { choice: "stop", correct: false, correctOption: "talk" }, after({ info: WORD_INFO }));
     expect(screen.queryByTestId("tap-lookup-hint")).toBeNull();

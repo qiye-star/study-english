@@ -16,7 +16,7 @@ afterEach(() => {
 describe("TapLookupHint", () => {
   it("shows once, remembers it, and a later instance stays hidden", () => {
     const first = render(<TapLookupHint />);
-    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("点一下单词会出现横线,再点一次查词");
+    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("点一下单词就能查词");
     expect(readTapLookupHintSeen()).toBe(true);
     first.unmount();
     render(<TapLookupHint />);
@@ -26,7 +26,7 @@ describe("TapLookupHint", () => {
   it("speaks English too", async () => {
     await i18n.changeLanguage("en");
     render(<TapLookupHint />);
-    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("Tap a word to underline it, tap again to look it up");
+    expect(screen.getByTestId("tap-lookup-hint")).toHaveTextContent("Tap a word to look it up");
   });
 
   it("is not a live region (the result line is the page's only status)", () => {

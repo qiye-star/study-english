@@ -1,17 +1,4 @@
 import { fireEvent } from "@testing-library/react";
-import { vi } from "vitest";
-
-/** Stubs `CSS.highlights` + `Highlight` (jsdom has neither); returns the registry. Undo with vi.unstubAllGlobals(). */
-export function installHighlightStub() {
-  class FakeHighlight {
-    ranges: Range[];
-    constructor(...ranges: Range[]) { this.ranges = ranges; }
-  }
-  const registry = new Map<string, FakeHighlight>();
-  vi.stubGlobal("Highlight", FakeHighlight);
-  vi.stubGlobal("CSS", { highlights: registry });
-  return { registry, rangesOf: (name: string): Range[] => registry.get(name)?.ranges ?? [] };
-}
 
 /** jsdom has no PointerEvent: without one fireEvent builds a plain Event and drops clientX / pointerType / pointerId. */
 export class TestPointerEvent extends MouseEvent {

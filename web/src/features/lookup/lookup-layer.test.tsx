@@ -7,6 +7,7 @@ import { ApiClient } from "~/api/client";
 import { resetKvCacheForTests } from "~/lib/kv-cache";
 import { createFetchMock, json } from "~/test/fetch-mock";
 import { renderWithProviders } from "~/test/render";
+import { TestPointerEvent, stubCaret, tapAt, unstubCaret } from "~/test/tap-lookup";
 import { useShadowSheet } from "~/features/practice";
 import { WithShadowSheet } from "~/features/practice/shadow/test-utils";
 import { LookupLayer } from "./lookup-layer";
@@ -331,5 +332,24 @@ describe("LookupLayer: a press on the bar survives Android collapsing the native
     mountMock();
     await selectText("country");
     expect(await screen.findByTestId("lookup-bar")).toHaveClass("select-none");
+  });
+
+  it("taps on the same word one after another send one dictionary request (R-T4)", async () => {
+    vi.stubGlobal("PointerEvent", TestPointerEvent);
+    const mock = createFetchMock({ "POST /api/dictionary/lookup": () => json({ hit: false }) });
+    renderWithProviders(<Page />, { api: new ApiClient({ getToken: () => "t", fetchImpl: mock.fetch }) });
+    const ctx = screen.getByTestId("ctx");
+    const tap = () => {
+      stubCaret(ctx.firstChild!, ctx.textContent!.indexOf("country") + 2);
+      tapAt(ctx);
+    };
+    const dictCalls = () => mock.calls.filter((c) => c.url.pathname === "/api/dictionary/lookup").length;
+    tap();
+    await waitFor(() => expect(dictCalls()).toBe(1));
+    await act(async () => { window.getSelection()?.removeAllRanges(); tap(); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+    expect(dictCalls()).toBe(1);
+    unstubCaret();
+    vi.unstubAllGlobals();
   });
 });
