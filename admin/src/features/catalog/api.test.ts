@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { camel, deletePhrase, exportBundle, fetchCatalog, importBundle, importLink, listBundles, patchMeta, purgePhrase, putChunk, startReplace } from "./api";
+import { S } from "./strings";
+import { camel, checkPackage, deletePhrase, exportBundle, fetchCatalog, importBundle, importLink, listBundles, patchMeta, purgePhrase, putChunk, startReplace, startUpload } from "./api";
 
 const ID = "3f2a9c1e-0000-4000-8000-000000000001";
 function stub(body: unknown) {
@@ -61,5 +62,39 @@ describe("catalog admin api", () => {
     expect(await importBundle(ID, "restore")).toEqual({ id: ID, segments: 2, status: "ready", published: false });
     expect(calls[0].url).toBe(`/api/admin/library/catalog/bundles/${ID}/import`);
     expect(JSON.parse(String(calls[0].init.body))).toEqual({ reason: "restore" });
+  });
+  it("startUpload omits source_md5 unless given (body unchanged from today)", async () => {
+    const calls = stub({ catalog_id: ID, chunk_bytes: 8 });
+    await startUpload("a.mp4", 10, { title: "T" });
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ filename: "a.mp4", size: 10, title: "T" });
+  });
+  it("startUpload sends source_md5 as a body field when given", async () => {
+    const md5 = "0123456789abcdef0123456789abcdef";
+    const calls = stub({ catalog_id: ID, chunk_bytes: 8 });
+    const out = await startUpload("media.mp4", 10, { title: "T" }, md5);
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ filename: "media.mp4", size: 10, title: "T", source_md5: md5 });
+    expect(out).toEqual({ catalogId: ID, chunkBytes: 8 });
+    expect(calls[0].url).not.toContain(md5);
+  });
+  it("checkPackage posts the md5s in the body only, to a fixed URL, and camel-cases matches", async () => {
+    const md5 = "0123456789abcdef0123456789abcdef";
+    const calls = stub({ matches: [{ source_md5: md5, catalog_id: ID, title: "T", status: "ready", published: false, retired: false, seg_count: 3, duration_ms: 1000, media_missing: false, refs: 0, upload_received: 0, upload_total: 0 }] });
+    const out = await checkPackage([md5]);
+    expect(calls[0].url).toBe("/api/admin/library/catalog/packages/check");
+    expect(calls[0].url).not.toContain(md5);
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ source_md5s: [md5] });
+    expect(out[0]).toMatchObject({ sourceMd5: md5, catalogId: ID, segCount: 3, mediaMissing: false });
+  });
+  it("checkPackage splits 1500 md5s into two requests of at most 1000", async () => {
+    const md5s = Array.from({ length: 1500 }, (_, i) => i.toString(16).padStart(32, "0"));
+    const calls = stub({ matches: [] });
+    await checkPackage(md5s);
+    expect(calls).toHaveLength(2);
+    expect(JSON.parse(String(calls[0].init.body)).source_md5s).toHaveLength(1000);
+    expect(JSON.parse(String(calls[1].init.body)).source_md5s).toHaveLength(500);
+  });
+  it("maps the package-import server errors to Chinese", () => {
+    expect(S.errors["Item already imported"]).toMatch(/[\u4e00-\u9fff]/);
+    expect(S.errors["Item is published"]).toBeTruthy();
   });
 });

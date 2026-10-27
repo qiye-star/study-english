@@ -21,16 +21,18 @@ export function metaOf(d: MetaDraft): NewMeta {
   };
 }
 
-export function MetaFields({ draft, state, onChange }: { draft: MetaDraft; state: CatalogState; onChange: (d: MetaDraft) => void }) {
+export function MetaFields({ draft, state, onChange, withTitle = true }: { draft: MetaDraft; state: CatalogState; onChange: (d: MetaDraft) => void; withTitle?: boolean }) {
   const id = useId();
   const set = (patch: Partial<MetaDraft>) => onChange({ ...draft, ...patch });
   return (
     <>
+      {withTitle && (
       <div className="space-y-1">
         <label htmlFor={`${id}-title`} className="block text-xs font-medium text-fg-2">{S.form.title}</label>
         <input id={`${id}-title`} className="field-sm" value={draft.title} placeholder={S.form.titleHint} maxLength={400}
           onChange={(e) => set({ title: e.target.value })} />
       </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <label htmlFor={`${id}-level`} className="block text-xs font-medium text-fg-2">{S.form.level}</label>
