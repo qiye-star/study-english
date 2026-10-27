@@ -35,7 +35,7 @@ describe("WordSpellQuestion (看中文拼英文)", () => {
     expect(screen.getByText("v. 说话；谈话")).toBeTruthy();
     expect(screen.queryByText("tɔːk")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "播放读音" }));
-    expect(s.speaker.listen).toHaveBeenCalledWith("talk:q", "talk", "us");
+    expect(s.speaker.listen).toHaveBeenCalledWith(expect.stringMatching(/^talk:q/), "talk", "us");
   });
 
   it("shows the word when the frame itself is pressed, not when the input is", () => {
@@ -108,6 +108,17 @@ describe("WordSpellQuestion (看中文拼英文)", () => {
 });
 
 describe("WordSpellQuestion (单词听写)", () => {
+  it("replay sends a new play id every time, so the TTS player plays again instead of stopping", () => {
+    const s = setup({ mode: "dictation" });
+    const button = screen.getByRole("button", { name: "播放读音" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(s.speaker.listen).toHaveBeenCalledTimes(2);
+    const [first, second] = (s.speaker.listen as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+    expect(first).not.toBe(second);
+    expect(s.speaker.listen).toHaveBeenNthCalledWith(2, expect.any(String), "talk", "us");
+  });
+
   it("never shows the word, the frame peek or the eye button", () => {
     setup({ mode: "dictation" });
     expect(screen.queryByText("talk")).toBeNull();

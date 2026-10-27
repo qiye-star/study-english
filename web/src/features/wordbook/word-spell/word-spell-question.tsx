@@ -28,6 +28,15 @@ export function WordSpellQuestion({ item, mode, result, busy, onSubmit, speaker 
   const word = item.card.word;
   const listenId = `${item.card.key}:q`;
   const dictation = mode === "dictation";
+  // 重播必须换一个播放 id:TTS 播放器对同一个 id 的 play() 只会停止(见 features/chat/use-tts-player.ts),
+  // 播完后同一个 id 再点就不发请求。
+  const replaySeq = useRef(0);
+  const [playId, setPlayId] = useState(listenId);
+  const replay = () => {
+    const id = `${listenId}:${++replaySeq.current}`;
+    setPlayId(id);
+    speaker.listen(id, word, "us");
+  };
   const peekable = !dictation && result === null;
   const [value, setValue] = useState("");
   const [hinted, setHinted] = useState(false);
@@ -83,14 +92,14 @@ export function WordSpellQuestion({ item, mode, result, busy, onSubmit, speaker 
       {dictation ? (
         <div className="flex items-center gap-3">
           <p className="flex-1 text-sub text-ink-2">{t("web.wordSpell.dictationHint")}</p>
-          <ListenButton id={listenId} text={word} accent="us" label={t("web.wordbook.word.listen.word")} onListen={speaker.listen}
+          <ListenButton id={playId} text={word} accent="us" label={t("web.wordbook.word.listen.word")} onListen={replay}
             listening={speaker.active} canListen={speaker.available}
             className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
         </div>
       ) : (
         <div className="flex items-start gap-2">
           <p className="min-w-0 flex-1 text-title font-medium leading-dialogue">{item.question?.prompt.meaning}</p>
-          <ListenButton id={listenId} text={word} accent="us" label={t("web.wordbook.word.listen.word")} onListen={speaker.listen}
+          <ListenButton id={playId} text={word} accent="us" label={t("web.wordbook.word.listen.word")} onListen={replay}
             listening={speaker.active} canListen={speaker.available}
             className="h-tap w-tap flex-none justify-center rounded-full bg-blue-tint text-blue liquid:rounded-full liquid:bg-wash liquid:text-ink liquid:shadow-well" />
         </div>
