@@ -23,4 +23,11 @@ describe("uploadChunks", () => {
     ctrl.abort();
     await expect(uploadChunks("x", new Blob([new Uint8Array(4)]), 4, () => {}, ctrl.signal, vi.fn())).rejects.toThrow("aborted");
   });
+  it("starts at a given chunk (resume) and keeps progress counted from the file start", async () => {
+    const send = vi.fn(async (_id: string, n: number) => ({ catalogId: "x", status: "uploading" as const, uploadReceived: (n + 1) * 4, uploadTotal: 10, chunkBytes: 4 }));
+    const seen: number[] = [];
+    await uploadChunks("x", new Blob([new Uint8Array(10)]), 4, (p) => seen.push(p.sent), undefined, send, 1);
+    expect(send.mock.calls.map((c) => c[1])).toEqual([1, 2]);
+    expect(seen).toEqual([8, 10]);
+  });
 });

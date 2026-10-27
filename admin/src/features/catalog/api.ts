@@ -54,8 +54,11 @@ export const fetchCatalogItem = async (id: string) =>
   camel<{ item: CatalogRow; segments: CatalogSegment[] }>(await request<unknown>(`${BASE}/${enc(id)}`));
 const itemOf = async (p: Promise<unknown>) => camel<{ item: CatalogRow }>(await p).item;
 export const importLink = (url: string, meta: NewMeta) => itemOf(request(`${BASE}/imports`, { json: { url, ...snakeMeta(meta) } }));
-export const startUpload = async (filename: string, size: number, meta: NewMeta) =>
-  camel<{ catalogId: string; chunkBytes: number }>(await request(`${BASE}/uploads`, { json: { filename, size, ...snakeMeta(meta) } }));
+/** `sourceMd5`(导入包的来源指纹,R-S2)只在给了值时才进请求体;不给时请求体与以前逐字节相同。 */
+export const startUpload = async (filename: string, size: number, meta: NewMeta, sourceMd5?: string) =>
+  camel<{ catalogId: string; chunkBytes: number }>(await request(`${BASE}/uploads`, {
+    json: { filename, size, ...snakeMeta(meta), ...(sourceMd5 !== undefined ? { source_md5: sourceMd5 } : {}) },
+  }));
 export const putChunk = async (id: string, n: number, blob: Blob, signal?: AbortSignal) => {
   const form = new FormData();
   form.append("chunk", blob, "blob");
@@ -65,6 +68,20 @@ export const putSubtitles = async (id: string, file: Blob, name: string) => {
   const form = new FormData();
   form.append("file", file, name);
   return camel<{ cueCount: number }>(await request(`${BASE}/uploads/${enc(id)}/subtitles`, { method: "PUT", form }));
+};
+/** 导入包的包检查(R-S3,管理端 operator):只读,md5 只在请求体里;每批最多 1000 个。 */
+export interface PackageMatch {
+  sourceMd5: string; catalogId: string; title: string; status: CatalogStatus; published: boolean; retired: boolean;
+  segCount: number; durationMs: number | null; mediaMissing: boolean; refs: number; uploadReceived: number; uploadTotal: number;
+}
+export const checkPackage = async (md5s: string[]): Promise<PackageMatch[]> => {
+  const out: PackageMatch[] = [];
+  for (let i = 0; i < md5s.length; i += 1000) {
+    const batch = md5s.slice(i, i + 1000);
+    const body = camel<{ matches: PackageMatch[] }>(await request(`${BASE}/packages/check`, { json: { source_md5s: batch } }));
+    out.push(...body.matches);
+  }
+  return out;
 };
 export const completeUpload = (id: string) => itemOf(request(`${BASE}/uploads/${enc(id)}/complete`, { method: "POST", json: {} }));
 /** plan 2026-10-15-catalog-keep-video R-KV5:同一条目重新上传媒体;分片与 complete 复用上传的接口。 */

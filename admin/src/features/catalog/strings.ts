@@ -75,6 +75,7 @@ export const S = {
     "Unexpected chunk": "分片顺序不对,请重新上传", "Wrong chunk size": "分片大小不对,请重新上传",
     "Upload is incomplete": "文件还没传完", "Subtitles cannot be changed now": "现在不能补传字幕",
     "Invalid subtitle file": "字幕文件无法解析", "File is required": "没有选择文件", "Invalid title": "标题不合法",
+    "Item already imported": "这个视频已经在精选库里(处理中或已就绪),已跳过",
   } as Record<string, string>,
   errorKinds: { no_subtitles: "没有字幕且自动识别不可用:补传字幕后会自动重试", upstream: "上游服务失败", blocked: "站点拒绝了服务器(试试配置代理,或本机下载后上传)", drm: "受 DRM 保护,无法导入", unsupported_format: "格式不支持,或与原素材时长不一致" } as Record<string, string>,
 };

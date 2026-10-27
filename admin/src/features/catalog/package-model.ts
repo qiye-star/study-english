@@ -3,7 +3,7 @@
  * 包里只有 manifest / meta / srt / 媒体;md5 与标题只在内存里用,不进 URL、日志或本机存储。
  */
 import { openZip, readSmallText, ZipError, type ZipEntry, type ZipReason } from "../../lib/zip-reader";
-import type { CatalogStatus } from "./api";
+import type { CatalogStatus, PackageMatch } from "./api";
 
 
 export const PACKAGE_FORMAT = "enjoy-video-export";
@@ -228,20 +228,7 @@ async function resolveItem(blob: Blob, entries: ZipEntry[], raw: Obj, m: Manifes
 // ---------------------------------------------------------------- 预览分类
 
 /** 服务端 `POST /packages/check` 回包的一项(R-S3)。 */
-export interface CheckMatch {
-  sourceMd5: string;
-  catalogId: string;
-  title: string;
-  status: CatalogStatus;
-  published: boolean;
-  retired: boolean;
-  segCount: number;
-  durationMs: number | null;
-  mediaMissing: boolean;
-  refs: number;
-  uploadReceived: number;
-  uploadTotal: number;
-}
+export type CheckMatch = PackageMatch;
 
 export type Mode = "skip" | "overwrite";
 export type Category = "new" | "exists" | "published" | "resumable" | "busy" | "skip_local";
