@@ -52,6 +52,10 @@ PROMPTS: dict[str, PromptSpec] = {
     "wordbook.explain": PromptSpec(
         "wordbook.explain", "背单词 AI 讲解", "text", frozenset({"word", "meanings", "example"}),
         ("<word>", "</word>"), 4000, sample_fields=("word", "meanings", "example")),
+    # 简单英英释义的改写(计划 2026-10-27 R-S7);没有发布版本时用 simple_defs_worker.DEFAULT_TEMPLATE
+    "wordbook.simplify_defs": PromptSpec(
+        "wordbook.simplify_defs", "简单英英释义改写", "text", frozenset({"items"}), (), 4000,
+        sample_fields=("items",)),
     # 跟读库的句子译文与分析(spec 2026-10-13-video-import D8 / E11);默认值在 app/library/ai.py,取自桌面端 enjoy 的原文
     "library.translate": PromptSpec(
         "library.translate", "跟读库句子译文", "text", frozenset({"native_language", "text"}), ("<text>", "</text>"),

@@ -69,6 +69,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tasks["links"] = asyncio.create_task(app_.state.learning_bus.run())  # learning links §4.4
         tasks["links_purge"] = asyncio.create_task(links_purge.daily_loop(app_))  # learning links §12
         tasks["activation_purge"] = asyncio.create_task(activation_purge.daily_loop(app_))  # plan L4 R10 (off by switch)
+        tasks["simple_defs"] = asyncio.create_task(simple_defs_worker.loop(app_))  # plan 2026-10-27 S5
         tasks["library"] = asyncio.create_task(app_.state.library.loop())  # library queue (video-import §6.1)
         # --- anchor for plan SI (2026-10-14-curated-library-server-import): await app_.state.catalog.recover() goes on the next line ---
         await app_.state.catalog.recover()  # requeue + run interrupted catalog imports

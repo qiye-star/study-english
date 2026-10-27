@@ -22,6 +22,7 @@ from app.models import WordbookSimpleDef
 from app.wordbook.definitions import DIR_NAME
 from app.wordbook.forms import Forms
 from app.wordbook.forms import default_path as forms_path
+from app.wordbook.simple_sources import default_sources
 
 EASY_FILE = "easy-words.txt"
 HARD_MIN = 1  # 难词数 >= 此值的释义才需要改写(可调)
@@ -115,6 +116,7 @@ class SimpleDefs:
         self._settings_of = settings_of
         self._max_queue = max_queue
         self._static: tuple[frozenset[str], dict[str, str]] | None = None
+        self.sources = default_sources(self.book_data_dir)  # first layer, in order (plan 2026-10-27 R-S1)
         self.loaded = False
         self.loaded_at = 0.0
         self.easy: frozenset[str] = frozenset()
@@ -157,18 +159,18 @@ class SimpleDefs:
             row = self.rows.get(key)
             if row is None:
                 if generate and is_hard([text], word, easy=self.easy, lemma_of=self.lemma_of):
-                    self._enqueue(key, word, pos, text)
+                    self.enqueue(key, word, pos, text)
                 out.append(d)
             elif row.status == "ok" and row.text:
                 out.append({"pos": pos, "text": row.text})
             else:
                 due = row.retry_after is None or row.retry_after <= now
                 if generate and row.status == "failed" and row.attempts < RETRY_LIMIT and due:
-                    self._enqueue(key, word, pos, text)
+                    self.enqueue(key, word, pos, text)
                 out.append(d)
         return out
 
-    def _enqueue(self, key: Key, word: str, pos: str, text: str) -> None:
+    def enqueue(self, key: Key, word: str, pos: str, text: str) -> None:
         if key in self.queue or len(self.queue) >= self._max_queue:
             return
         self.queue[key] = (word, pos, text)
