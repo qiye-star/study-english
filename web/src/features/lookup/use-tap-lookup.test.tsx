@@ -189,10 +189,14 @@ describe("useTapLookup · where a tap does nothing", () => {
 
 describe("useTapLookup · desktop mouse single click", () => {
   const mouse = { pointerId: 1, pointerType: "mouse", isPrimary: true, button: 0, clientX: 10, clientY: 10 };
-  const clickWord = (word: string, init: PointerEventInit = {}) => {
+  // a real click: pointerdown, then mousedown (carries the click count), then pointerup
+  const clickWord = (word: string, init: PointerEventInit & { detail?: number } = {}) => {
     stubCaret(ctx().firstChild!, at(word));
-    fireEvent.pointerDown(ctx(), { ...mouse, ...init });
-    fireEvent.pointerUp(ctx(), { ...mouse, ...init });
+    const { detail = 1, ...pointer } = init;
+    const merged = { ...mouse, ...pointer };
+    fireEvent.pointerDown(ctx(), merged);
+    fireEvent.mouseDown(ctx(), { button: 0, detail, shiftKey: merged.shiftKey, ctrlKey: merged.ctrlKey, metaKey: merged.metaKey, altKey: merged.altKey, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(ctx(), merged);
   };
 
   it("a single left click on a word selects it and calls onSelect once", () => {
@@ -210,11 +214,43 @@ describe("useTapLookup · desktop mouse single click", () => {
     expect(onSelect).toHaveBeenCalledTimes(2);
   });
 
-  it("the second click of a native double-click (detail 2) is left to the browser", () => {
+  it("the second click of a native double-click (mousedown detail 2) is left to the browser", () => {
     const { onSelect } = mount();
     clickWord("country");
     clickWord("country", { detail: 2 });
     expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it("a triple click (detail 3) and a double click on its own are never a lookup, so native paragraph selection stays", () => {
+    const { onSelect } = mount();
+    clickWord("country", { detail: 2 });
+    clickWord("country", { detail: 3 });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(selected()).toBe("");
+  });
+
+  it("the click count is read from mousedown, not pointerdown.detail (Chromium reports 0 there)", () => {
+    const { onSelect } = mount();
+    stubCaret(ctx().firstChild!, at("country"));
+    fireEvent.pointerDown(ctx(), { ...mouse, detail: 0 });
+    fireEvent.mouseDown(ctx(), { button: 0, detail: 3 });
+    fireEvent.pointerUp(ctx(), mouse);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it.each(["shiftKey", "ctrlKey", "metaKey", "altKey"] as const)("a click with %s extends the native selection and is not a lookup", (key) => {
+    const { onSelect } = mount();
+    clickWord("country", { [key]: true });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(selected()).toBe("");
+  });
+
+  it("a shift-click after a lookup leaves the lookup selection alone (no replacement by the clicked word)", () => {
+    const { onSelect } = mount();
+    clickWord("country");
+    clickWord("what", { shiftKey: true });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(selected()).toBe("country");
   });
 
   it("a right or middle button press is not a lookup", () => {
